@@ -20,6 +20,7 @@ TELEGRAM_BOT_TOKEN
 TELEGRAM_WEBHOOK_SECRET
 ALLOWED_CHAT_ID
 LLM_API_KEY
+LLM_MODEL
 TIMEZONE
 ```
 
@@ -154,4 +155,3 @@ Use dados fictícios ou anonimizados em logs compartilhados. Não copiar `.env`,
 - [ ] Existe idempotência para reentrega?
 - [ ] Migration e testes acompanham mudança de banco?
 - [ ] O teste local não usa produção nem chama integrações reais por acidente?
-

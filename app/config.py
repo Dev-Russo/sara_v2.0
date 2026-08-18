@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str | None = None
     allowed_chat_id: str | None = None
     llm_api_key: str | None = None
+    llm_model: str | None = None
     timezone: str = Field(default="America/Sao_Paulo", min_length=1)
 
     model_config = SettingsConfigDict(
@@ -31,4 +32,3 @@ def get_settings() -> Settings:
     """Retorna a configuração da aplicação para o processo atual."""
 
     return Settings()
-
