@@ -98,6 +98,26 @@ def response_from_harness(result: HarnessResult) -> ResponseDecision:
     """Fallback determinístico para os estados do Harness desta primeira fatia."""
 
     effect = result.effect or {}
+    if result.command_type == "tasks.list" and result.status == "executed":
+        total = effect.get("total", 0)
+        items = effect.get("items", [])
+        titles = [
+            item.get("title")
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("title"), str)
+        ]
+        if total == 0:
+            return ResponseDecision(message="Não encontrei tarefas para essa consulta.")
+        if total == 1 and titles:
+            return ResponseDecision(message=f"Encontrei 1 tarefa: {titles[0]}.")
+        if not titles:
+            return ResponseDecision(message=f"Encontrei {total} tarefas.")
+        visible_titles = ", ".join(titles[:5])
+        suffix = "" if len(titles) <= 5 else ", entre outras"
+        return ResponseDecision(
+            message=f"Encontrei {total} tarefas: {visible_titles}{suffix}.",
+        )
+
     title = effect.get("title")
     if result.command_type == "tasks.create" and isinstance(title, str):
         if result.status == "duplicate":

@@ -43,7 +43,7 @@ class TaskCreatePayload(BaseModel):
 
 
 class TaskListPayload(BaseModel):
-    status: TaskStatus | None = None
+    status: TaskStatus | None = "active"
     due_date_from: date | None = None
     due_date_to: date | None = None
 

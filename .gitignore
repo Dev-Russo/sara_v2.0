@@ -16,4 +16,4 @@ htmlcov/
 .DS_Store
 
 postgres_data/
-
+reports/

@@ -26,7 +26,8 @@
 │   │   ├── nodes.py
 │   │   ├── routing.py
 │   │   ├── confirmation_resolver.py
-│   │   └── builder.py
+│   │   ├── builder.py
+│   │   └── visualization.py
 │   ├── harness/
 │   │   ├── service.py
 │   │   ├── handlers.py

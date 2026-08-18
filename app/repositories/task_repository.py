@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import Task
 from app.repositories.interfaces import TaskRepository
-from app.schemas.commands import TaskCreatePayload
+from app.schemas.commands import TaskCreatePayload, TaskListPayload
 from app.schemas.tasks import TaskListResult, TaskView
 
 
@@ -35,9 +35,24 @@ class SqlAlchemyTaskRepository(TaskRepository):
         )
         return TaskView.model_validate(task) if task else None
 
-    async def list_for_user(self, user_id: UUID) -> TaskListResult:
-        tasks = (
-            await self._session.scalars(select(Task).where(Task.user_id == user_id))
-        ).all()
+    async def list_for_user(
+        self,
+        user_id: UUID,
+        payload: TaskListPayload,
+    ) -> TaskListResult:
+        statement = select(Task).where(Task.user_id == user_id)
+        if payload.status is not None:
+            statement = statement.where(Task.status == payload.status)
+        if payload.due_date_from is not None:
+            statement = statement.where(Task.due_date >= payload.due_date_from)
+        if payload.due_date_to is not None:
+            statement = statement.where(Task.due_date <= payload.due_date_to)
+
+        statement = statement.order_by(
+            Task.priority.desc(),
+            Task.due_date.asc().nulls_last(),
+            Task.created_at.desc(),
+        )
+        tasks = (await self._session.scalars(statement)).all()
         items = [TaskView.model_validate(task) for task in tasks]
         return TaskListResult(items=items, total=len(items))

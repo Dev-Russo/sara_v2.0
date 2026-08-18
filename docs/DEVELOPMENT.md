@@ -61,6 +61,16 @@ O CLI interativo real pode ser iniciado com:
 
 Ele exige `LLM_API_KEY`, `LLM_MODEL` e um banco acessível no `DATABASE_URL`.
 
+Para inspecionar visualmente a topologia atual sem manter um diagrama manual:
+
+```powershell
+.venv\Scripts\python.exe -m app.graph.visualization --png
+```
+
+O comando usa `CompiledStateGraph.get_graph()` e grava o Mermaid e o PNG em
+`reports/graph/`. A geração do PNG usa apenas um `mmdc` local; o arquivo Mermaid
+sempre é gerado mesmo quando o renderizador local não está instalado.
+
 ## Ciclo de implementação
 
 ### 1. Especificar o comportamento

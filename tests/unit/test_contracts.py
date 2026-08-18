@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from app.harness.confirmation import normalize_confirmation
 from app.harness.policies import requires_confirmation
 from app.scheduler.idempotency import scheduled_idempotency_key
-from app.schemas.commands import TaskCreatePayload, TasksCreateCommand
+from app.schemas.commands import TaskCreatePayload, TasksCreateCommand, TasksListCommand
 
 
 def test_task_create_normalizes_title() -> None:
@@ -42,6 +42,14 @@ def test_task_priority_accepts_only_binary_values() -> None:
 def test_blank_task_title_is_rejected() -> None:
     with pytest.raises(ValidationError):
         TaskCreatePayload(title="   ")
+
+
+def test_task_list_defaults_to_active_and_allows_explicit_all() -> None:
+    default_command = TasksListCommand(type="tasks.list")
+    all_command = TasksListCommand(type="tasks.list", payload={"status": None})
+
+    assert default_command.payload.status == "active"
+    assert all_command.payload.status is None
 
 
 def test_confirmation_policy_covers_destructive_operations() -> None:

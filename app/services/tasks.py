@@ -9,9 +9,9 @@ from app.models.command_execution import CommandExecution
 from app.repositories.command_execution_repository import SqlAlchemyCommandExecutionRepository
 from app.repositories.task_repository import SqlAlchemyTaskRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
-from app.schemas.commands import TaskCreatePayload
+from app.schemas.commands import TaskCreatePayload, TaskListPayload
 from app.schemas.events import ExecutionContext
-from app.schemas.tasks import TaskCreationResult
+from app.schemas.tasks import TaskCreationResult, TaskListResult
 
 
 class TaskService:
@@ -58,6 +58,19 @@ class TaskService:
                 execution.completed_at = datetime.now(UTC)
 
                 return TaskCreationResult(task=task, duplicate=False)
+
+    async def list_tasks(
+        self,
+        context: ExecutionContext,
+        payload: TaskListPayload,
+    ) -> TaskListResult:
+        async with self._session_factory() as session:
+            async with session.begin():
+                user_repository = SqlAlchemyUserRepository(session)
+                task_repository = SqlAlchemyTaskRepository(session)
+
+                await user_repository.ensure_exists(context.user_id)
+                return await task_repository.list_for_user(context.user_id, payload)
 
     async def _duplicate_result(
         self,

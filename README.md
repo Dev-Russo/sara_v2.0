@@ -46,6 +46,15 @@ migrations:
 O CLI usa o mesmo Graph e a mesma persistência da aplicação. Digite `/exit` para
 encerrar a sessão.
 
+Para gerar o diagrama automaticamente a partir do Graph compilado:
+
+```powershell
+.venv\Scripts\python.exe -m app.graph.visualization --png
+```
+
+Os arquivos são gravados em `reports/graph/`; o `.mmd` pode ser aberto no VS Code
+e o `.png` exige o Mermaid CLI local (`mmdc`).
+
 ## Testes e qualidade
 
 ```powershell

@@ -3,7 +3,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.schemas.commands import TaskCreatePayload
+from app.schemas.commands import TaskCreatePayload, TaskListPayload
 from app.schemas.tasks import TaskListResult, TaskView
 
 
@@ -14,7 +14,11 @@ class TaskRepository(Protocol):
     async def get_for_user(self, user_id: UUID, task_id: UUID) -> TaskView | None:
         """Busca uma tarefa sempre dentro do escopo do usuário."""
 
-    async def list_for_user(self, user_id: UUID) -> TaskListResult:
+    async def list_for_user(
+        self,
+        user_id: UUID,
+        payload: TaskListPayload,
+    ) -> TaskListResult:
         """Lista tarefas sem expor detalhes da persistência ao service."""
 
 
