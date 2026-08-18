@@ -17,6 +17,26 @@ def test_task_create_normalizes_title() -> None:
     )
 
     assert command.payload.title == "revisar documentação"
+    assert command.payload.priority == 0
+
+
+def test_task_priority_accepts_only_binary_values() -> None:
+    assert TasksCreateCommand(
+        type="tasks.create",
+        payload={"title": "tarefa prioritária", "priority": 1},
+    ).payload.priority == 1
+
+    with pytest.raises(ValidationError):
+        TasksCreateCommand(
+            type="tasks.create",
+            payload={"title": "tarefa inválida", "priority": 2},
+        )
+
+    with pytest.raises(ValidationError):
+        TasksCreateCommand(
+            type="tasks.create",
+            payload={"title": "tarefa legada", "priority": "normal"},
+        )
 
 
 def test_blank_task_title_is_rejected() -> None:

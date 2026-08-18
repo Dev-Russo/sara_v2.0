@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 TaskStatus = Literal["active", "completed", "archived"]
-TaskPriority = Literal["normal", "important"]
+TaskPriority = Literal[0, 1]
 
 
 class TaskView(BaseModel):
@@ -25,4 +25,3 @@ class TaskView(BaseModel):
 class TaskListResult(BaseModel):
     items: list[TaskView]
     total: int
-

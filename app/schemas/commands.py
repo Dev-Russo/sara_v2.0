@@ -11,7 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 TaskStatus = Literal["active", "completed", "archived"]
-TaskPriority = Literal["normal", "important"]
+TaskPriority = Literal[0, 1]
 
 
 class CommandBase(BaseModel):
@@ -21,7 +21,7 @@ class CommandBase(BaseModel):
 class TaskCreatePayload(BaseModel):
     title: str = Field(min_length=1)
     description: str | None = None
-    priority: TaskPriority = "normal"
+    priority: TaskPriority = 0
     due_date: date | None = None
     start_at: datetime | None = None
     end_at: datetime | None = None

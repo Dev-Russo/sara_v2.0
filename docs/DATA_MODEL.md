@@ -40,7 +40,7 @@ Campos mínimos:
 | `title` | Obrigatório, não vazio após normalização. |
 | `description` | Opcional. |
 | `status` | `active`, `completed` ou `archived`. |
-| `priority` | `normal` ou `important`. |
+| `priority` | Inteiro binário: `0` para não prioritária ou `1` para prioritária. O padrão é `0`. |
 | `due_date` | Data de negócio opcional. |
 | `start_at` | Horário opcional, com timezone. |
 | `end_at` | Opcional; não pode anteceder `start_at`. |

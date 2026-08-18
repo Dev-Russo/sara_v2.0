@@ -130,6 +130,7 @@ Nenhum módulo de aplicação deve bloquear o event loop com I/O síncrono.
 | --- | --- |
 | Tarefa | Unidade de trabalho pertencente ao usuário. |
 | Planejamento | Fluxo conversacional que escolhe, cria ou remaneja tarefas para uma data-alvo. |
+| Prioridade | Indicador binário da tarefa: `0` significa não prioritária e `1` significa prioritária. O padrão é `0`. |
 | Remanejamento | Alteração da data, horário ou prioridade de uma tarefa existente. |
 | Revisão diária | Fluxo que revisa o estado das tarefas do dia e registra decisões do usuário. |
 | Lembrete | Notificação agendada vinculada a uma tarefa. Não é uma entidade de agenda externa. |
