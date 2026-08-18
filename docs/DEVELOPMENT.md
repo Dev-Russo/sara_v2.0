@@ -52,6 +52,15 @@ O endpoint de health deve estar disponível para indicar que a aplicação inici
 
 Para testar conversação local, prefira um adapter/fake ou CLI que use o mesmo Graph, Harness e services sem enviar mensagens reais.
 
+O CLI interativo real pode ser iniciado com:
+
+```powershell
+.venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m app.cli
+```
+
+Ele exige `LLM_API_KEY`, `LLM_MODEL` e um banco acessível no `DATABASE_URL`.
+
 ## Ciclo de implementação
 
 ### 1. Especificar o comportamento

@@ -35,6 +35,17 @@ uvicorn app.main:app --reload
 
 Health check: `GET http://localhost:8000/health`.
 
+Enquanto o webhook Telegram não está conectado, use o CLI depois de aplicar as
+migrations:
+
+```powershell
+.venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m app.cli
+```
+
+O CLI usa o mesmo Graph e a mesma persistência da aplicação. Digite `/exit` para
+encerrar a sessão.
+
 ## Testes e qualidade
 
 ```powershell

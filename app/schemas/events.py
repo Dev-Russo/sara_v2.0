@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-EventSource = Literal["telegram", "scheduler", "test"]
+EventSource = Literal["telegram", "scheduler", "cli", "test"]
 
 
 class ExecutionContext(BaseModel):
@@ -35,4 +35,3 @@ class ConfirmationEvent(BaseModel):
     decision: Literal["confirm", "cancel"]
     received_at: datetime
     source: Literal["telegram", "test"]
-

@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     allowed_chat_id: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    cli_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
     timezone: str = Field(default="America/Sao_Paulo", min_length=1)
 
     model_config = SettingsConfigDict(
