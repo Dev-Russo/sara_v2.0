@@ -1,0 +1,2 @@
+"""Adapters para provedores externos."""
+

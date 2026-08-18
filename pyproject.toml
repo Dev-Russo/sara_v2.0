@@ -1,0 +1,18 @@
+[project]
+name = "sara-assistente"
+version = "0.1.0"
+description = "SARA 2.0 - assistente pessoal conversacional orientada a tarefas"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
