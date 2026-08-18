@@ -6,7 +6,7 @@ um handler genérico ou enviar payloads sem validação.
 
 from datetime import date, datetime
 from typing import Annotated, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -15,6 +15,7 @@ TaskPriority = Literal[0, 1]
 
 
 class CommandBase(BaseModel):
+    command_id: UUID = Field(default_factory=uuid4)
     version: int = Field(default=1, ge=1)
 
 

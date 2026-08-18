@@ -4,13 +4,15 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 TaskStatus = Literal["active", "completed", "archived"]
 TaskPriority = Literal[0, 1]
 
 
 class TaskView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     user_id: UUID
     title: str
@@ -25,3 +27,8 @@ class TaskView(BaseModel):
 class TaskListResult(BaseModel):
     items: list[TaskView]
     total: int
+
+
+class TaskCreationResult(BaseModel):
+    task: TaskView
+    duplicate: bool

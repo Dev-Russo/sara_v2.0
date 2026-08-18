@@ -27,6 +27,7 @@
 │   │   └── builder.py
 │   ├── harness/
 │   │   ├── service.py
+│   │   ├── handlers.py
 │   │   ├── policies.py
 │   │   ├── confirmation.py
 │   │   ├── registry.py
@@ -51,6 +52,8 @@
 │   ├── repositories/
 │   │   ├── interfaces.py
 │   │   ├── task_repository.py
+│   │   ├── user_repository.py
+│   │   ├── command_execution_repository.py
 │   │   ├── reminder_repository.py
 │   │   ├── session_repository.py
 │   │   └── confirmation_repository.py
@@ -85,6 +88,7 @@
 │   └── e2e/
 ├── alembic/
 │   └── versions/
+│       └── 0001_create_users_tasks_and_executions.py
 ├── scripts/
 ├── docs/
 │   ├── PROJECT_CONTEXT.md

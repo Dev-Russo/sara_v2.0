@@ -1,5 +1,8 @@
-"""Modelos persistidos da SARA 2.0.
+"""Modelos persistidos da SARA 2.0."""
 
-Os módulos de entidade serão registrados no metadata junto com a primeira migration.
-"""
+from app.models.base import Base, TimestampMixin
+from app.models.command_execution import CommandExecution
+from app.models.task import Task
+from app.models.user import User
 
+__all__ = ["Base", "CommandExecution", "Task", "TimestampMixin", "User"]

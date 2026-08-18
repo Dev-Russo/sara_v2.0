@@ -15,9 +15,17 @@ class Harness:
         self._registry = registry
 
     async def handle(self, command: Command, context: ExecutionContext) -> HarnessResult:
-        """Executa um comando validado; o pipeline será implementado por fatias."""
+        """Executa um comando cujo handler foi registrado explicitamente."""
 
-        raise NotImplementedError("Harness pipeline is not implemented yet")
+        handler = self._registry.get(command.type)
+        if handler is None:
+            return HarnessResult(
+                status="rejected",
+                command_id=command.command_id,
+                command_type=command.type,
+                error_code="COMMAND_NOT_SUPPORTED",
+            )
+        return await handler(command, context)
 
     async def resolve_confirmation(
         self,
@@ -28,4 +36,3 @@ class Harness:
         """Retoma um snapshot persistido sem passar pelo Supervisor."""
 
         raise NotImplementedError("confirmation resolution is not implemented yet")
-
