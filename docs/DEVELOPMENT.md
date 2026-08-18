@@ -24,6 +24,10 @@ LLM_MODEL
 TIMEZONE
 ```
 
+O Graph só é composto com o adapter real quando `LLM_API_KEY` e `LLM_MODEL` estão
+preenchidos. Sem essas variáveis, o processo ainda inicia para health checks, mas
+o fluxo conversacional não fica disponível.
+
 O modo de teste deve conseguir iniciar sem chamar Telegram ou LLM reais, usando fakes.
 
 ## Inicialização típica

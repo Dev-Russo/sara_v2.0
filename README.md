@@ -4,7 +4,11 @@ Assistente pessoal conversacional, inicialmente operada pelo Telegram, para tran
 
 ## Estado atual
 
-Esta primeira base cria o esqueleto do modular monolith e os contratos que serão compartilhados entre Graph, agentes e Harness. O único endpoint funcional nesta etapa é o health check; os fluxos de tarefa, confirmação e persistência serão implementados por fatias verticais.
+Esta base cria o esqueleto do modular monolith e já possui a primeira fatia vertical
+de captura de tarefas: Graph, TaskAgent, Harness, persistência e auditoria. O
+Graph usa o adapter Anthropic quando `LLM_API_KEY` e `LLM_MODEL` estão configurados;
+confirmações, planejamento, revisão e integração completa do webhook continuam
+nas próximas fatias.
 
 ## Arquitetura
 
