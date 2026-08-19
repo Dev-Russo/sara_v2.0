@@ -1,4 +1,6 @@
+from datetime import date, datetime
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -38,6 +40,24 @@ async def test_create_task_returns_persisted_task(
     assert result.task.priority == 1
     assert result.task.status == "active"
     assert result.task.user_id == context.user_id
+    expected_today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    assert result.task.due_date == expected_today
+
+
+@pytest.mark.asyncio
+async def test_create_task_preserves_explicit_due_date(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    service = TaskService(session_factory)
+    context = make_context(idempotency_key="create-task-explicit-date")
+    due_date = date(2026, 8, 20)
+
+    result = await service.create_task(
+        context,
+        TaskCreatePayload(title="Estudar amanhã", due_date=due_date),
+    )
+
+    assert result.task.due_date == due_date
 
 
 @pytest.mark.asyncio

@@ -20,7 +20,7 @@ def build_runtime_graph(settings: Settings) -> CompiledStateGraph | None:
         return None
 
     session_factory = create_session_factory(settings)
-    task_service = TaskService(session_factory)
+    task_service = TaskService(session_factory, timezone=settings.timezone)
     registry = CommandRegistry()
     register_task_handlers(registry, task_service)
     harness = Harness(registry)
@@ -29,5 +29,6 @@ def build_runtime_graph(settings: Settings) -> CompiledStateGraph | None:
             api_key=settings.llm_api_key,
             model=settings.llm_model,
         ),
+        timezone=settings.timezone,
     )
     return build_graph(task_agent=task_agent, harness=harness)

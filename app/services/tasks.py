@@ -1,7 +1,8 @@
 """Casos de uso de tarefas; transações são controladas aqui."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -15,8 +16,14 @@ from app.schemas.tasks import TaskCreationResult, TaskListResult
 
 
 class TaskService:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        timezone: str = "America/Sao_Paulo",
+    ) -> None:
         self._session_factory = session_factory
+        self._timezone = ZoneInfo(timezone)
 
     async def create_task(
         self,
@@ -45,12 +52,17 @@ class TaskService:
                     command_type="tasks.create",
                     command_version=1,
                 )
-                task = await task_repository.create(context.user_id, payload)
+                normalized_payload = payload
+                if normalized_payload.due_date is None:
+                    normalized_payload = payload.model_copy(update={"due_date": self._today()})
+
+                task = await task_repository.create(context.user_id, normalized_payload)
                 effect = {
                     "kind": "task_created",
                     "task_id": str(task.id),
                     "title": task.title,
                     "priority": task.priority,
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
                 }
                 execution.status = "executed"
                 execution.effect_payload = effect
@@ -58,6 +70,9 @@ class TaskService:
                 execution.completed_at = datetime.now(UTC)
 
                 return TaskCreationResult(task=task, duplicate=False)
+
+    def _today(self) -> date:
+        return datetime.now(self._timezone).date()
 
     async def list_tasks(
         self,

@@ -3,10 +3,11 @@
 from typing import Literal
 
 from app.agents.base import Agent
+from app.agents.response import ResponseAgent
 from app.agents.supervisor import select_flow
 from app.graph.state import GraphState
 from app.harness.service import Harness
-from app.schemas.results import HarnessResult, ResponseDecision
+from app.schemas.results import ResponseDecision
 
 FlowRoute = Literal["task", "unsupported"]
 DecisionRoute = Literal["execute", "respond"]
@@ -63,7 +64,7 @@ async def execute_command(state: GraphState, harness: Harness) -> GraphState:
 
 
 async def unsupported_flow(state: GraphState) -> GraphState:
-    """Responde de forma explícita enquanto os demais agentes não existem."""
+    """Fallback transitório enquanto o Supervisor não encaminha outros agentes."""
 
     flow = state.get("active_flow") or "conversation"
     return {
@@ -73,15 +74,16 @@ async def unsupported_flow(state: GraphState) -> GraphState:
     }
 
 
-async def render_response(state: GraphState) -> GraphState:
-    """Converte o resultado estruturado em resposta sem inventar efeitos."""
+async def render_response(state: GraphState, response_agent: ResponseAgent) -> GraphState:
+    """Entrega resultados ao ResponseAgent sem conhecer regras de apresentação."""
 
     if state.get("response_decision") is not None:
         return state
 
     result = state.get("harness_result")
     if result is not None:
-        return {"response_decision": response_from_harness(result)}
+        response = await response_agent.respond(result, state["context"])
+        return {"response_decision": response}
 
     decision = state.get("agent_decision")
     message = (
@@ -92,43 +94,3 @@ async def render_response(state: GraphState) -> GraphState:
     return {
         "response_decision": ResponseDecision(message=message),
     }
-
-
-def response_from_harness(result: HarnessResult) -> ResponseDecision:
-    """Fallback determinístico para os estados do Harness desta primeira fatia."""
-
-    effect = result.effect or {}
-    if result.command_type == "tasks.list" and result.status == "executed":
-        total = effect.get("total", 0)
-        items = effect.get("items", [])
-        titles = [
-            item.get("title")
-            for item in items
-            if isinstance(item, dict) and isinstance(item.get("title"), str)
-        ]
-        if total == 0:
-            return ResponseDecision(message="Não encontrei tarefas para essa consulta.")
-        if total == 1 and titles:
-            return ResponseDecision(message=f"Encontrei 1 tarefa: {titles[0]}.")
-        if not titles:
-            return ResponseDecision(message=f"Encontrei {total} tarefas.")
-        visible_titles = ", ".join(titles[:5])
-        suffix = "" if len(titles) <= 5 else ", entre outras"
-        return ResponseDecision(
-            message=f"Encontrei {total} tarefas: {visible_titles}{suffix}.",
-        )
-
-    title = effect.get("title")
-    if result.command_type == "tasks.create" and isinstance(title, str):
-        if result.status == "duplicate":
-            return ResponseDecision(message=f"A tarefa já estava criada: {title}.")
-        if result.status == "executed":
-            return ResponseDecision(message=f"Tarefa criada: {title}.")
-
-    if result.status == "rejected":
-        return ResponseDecision(message="Não foi possível executar esse comando.")
-    if result.status == "awaiting_confirmation":
-        return ResponseDecision(message="Preciso da sua confirmação para continuar.")
-    if result.status == "failed":
-        return ResponseDecision(message="A execução da tarefa falhou.")
-    return ResponseDecision(message="Comando executado com sucesso.")

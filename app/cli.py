@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -27,6 +30,8 @@ class CliSession:
     user_id: UUID
     graph_thread_id: str = field(default_factory=lambda: f"cli:{uuid4()}")
     active_flow: str | None = None
+    debug: bool = False
+    trace_sink: Callable[[str], None] = print
 
     async def process(self, text: str) -> str:
         """Processa uma mensagem pelo Graph e devolve somente a resposta final."""
@@ -56,13 +61,26 @@ class CliSession:
 
         result = await self.graph.ainvoke(state)
         self.active_flow = result.get("active_flow")
+        if self.debug:
+            self._trace_model("agent_decision", result.get("agent_decision"))
+            self._trace_model("harness_result", result.get("harness_result"))
         response = result.get("response_decision")
         if response is None:
             return "Não consegui produzir uma resposta."
+        if self.debug:
+            self.trace_sink(f"[debug] response: {response.message}")
         return response.message
 
+    def _trace_model(self, label: str, value: object) -> None:
+        if value is None:
+            self.trace_sink(f"[debug] {label}: null")
+            return
+        payload = value.model_dump(mode="json")
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        self.trace_sink(f"[debug] {label}: {serialized}")
 
-async def run_cli(settings: Settings | None = None) -> int:
+
+async def run_cli(settings: Settings | None = None, *, debug: bool = False) -> int:
     """Executa o loop interativo local usando o adapter real de LLM."""
 
     runtime_settings = settings or get_settings()
@@ -71,7 +89,11 @@ async def run_cli(settings: Settings | None = None) -> int:
         print("Configure LLM_API_KEY e LLM_MODEL no .env antes de iniciar o CLI.")
         return 1
 
-    session = CliSession(graph=graph, user_id=runtime_settings.cli_user_id)
+    session = CliSession(
+        graph=graph,
+        user_id=runtime_settings.cli_user_id,
+        debug=debug,
+    )
     print("SARA CLI. Digite /exit para sair.")
     while True:
         try:
@@ -89,8 +111,15 @@ async def run_cli(settings: Settings | None = None) -> int:
             print("SARA> Não consegui processar essa mensagem agora.")
 
 
-def main() -> None:
-    raise SystemExit(asyncio.run(run_cli()))
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Executa a SARA no terminal.")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="mostra a decisao do agente e o resultado do Harness a cada mensagem",
+    )
+    args = parser.parse_args(argv)
+    raise SystemExit(asyncio.run(run_cli(debug=args.debug)))
 
 
 if __name__ == "__main__":

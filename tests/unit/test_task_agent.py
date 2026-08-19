@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.agents.task import TaskAgent
-from app.schemas.commands import TasksCreateCommand
+from app.schemas.commands import TasksCreateCommand, TasksListCommand
 from app.schemas.events import ExecutionContext, MessageEvent
 
 
@@ -65,3 +65,24 @@ async def test_task_agent_rejects_invalid_llm_output_without_command() -> None:
     assert decision.message == "Não consegui interpretar essa solicitação."
     assert decision.metadata["error_code"] == "AGENT_OUTPUT_INVALID"
 
+
+@pytest.mark.asyncio
+async def test_task_agent_normalizes_today_for_task_listing() -> None:
+    llm = FakeLLMClient(
+        '{"message":null,"command":{"type":"tasks.list",'
+        '"payload":{"status":"active","due_date_from":"2026-08-19",'
+        '"due_date_to":"2026-08-19"}},"transition":null,"metadata":{}}',
+    )
+    event = MessageEvent(
+        event_id="today-list-event",
+        user_id=uuid4(),
+        text="liste minhas tarefas de hoje",
+        received_at=datetime(2026, 8, 18, 23, 0, tzinfo=UTC),
+        source="test",
+    )
+
+    decision = await TaskAgent(llm).decide(event, make_context(event.user_id))
+
+    assert isinstance(decision.command, TasksListCommand)
+    assert decision.command.payload.due_date_from.isoformat() == "2026-08-18"
+    assert decision.command.payload.due_date_to.isoformat() == "2026-08-18"

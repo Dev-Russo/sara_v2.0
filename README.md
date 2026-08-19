@@ -46,6 +46,13 @@ migrations:
 O CLI usa o mesmo Graph e a mesma persistência da aplicação. Digite `/exit` para
 encerrar a sessão.
 
+Durante o desenvolvimento, use `--debug` para visualizar a decisão estruturada do
+agente, o payload do comando, o resultado do Harness e a resposta final:
+
+```powershell
+.venv\Scripts\python.exe -m app.cli --debug
+```
+
 Para gerar o diagrama automaticamente a partir do Graph compilado:
 
 ```powershell

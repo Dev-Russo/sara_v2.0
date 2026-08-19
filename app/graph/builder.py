@@ -4,6 +4,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from app.agents.base import Agent
+from app.agents.response import DeterministicResponseAgent, ResponseAgent
 from app.graph.nodes import (
     execute_command,
     load_session,
@@ -18,10 +19,16 @@ from app.graph.state import GraphState
 from app.harness.service import Harness
 
 
-def build_graph(*, task_agent: Agent, harness: Harness) -> CompiledStateGraph:
+def build_graph(
+    *,
+    task_agent: Agent,
+    harness: Harness,
+    response_agent: ResponseAgent | None = None,
+) -> CompiledStateGraph:
     """Monta o fluxo de captura de tarefa com dependências explícitas."""
 
     graph = StateGraph(GraphState)
+    selected_response_agent = response_agent or DeterministicResponseAgent()
 
     async def task_agent_node(state: GraphState) -> GraphState:
         return await run_task_agent(state, task_agent)
@@ -29,12 +36,15 @@ def build_graph(*, task_agent: Agent, harness: Harness) -> CompiledStateGraph:
     async def harness_node(state: GraphState) -> GraphState:
         return await execute_command(state, harness)
 
+    async def response_node(state: GraphState) -> GraphState:
+        return await render_response(state, selected_response_agent)
+
     graph.add_node("load_session", load_session)
     graph.add_node("task_agent", task_agent_node)
     graph.add_node("normalize_decision", normalize_decision)
     graph.add_node("execute_command", harness_node)
     graph.add_node("unsupported_flow", unsupported_flow)
-    graph.add_node("render_response", render_response)
+    graph.add_node("render_response", response_node)
 
     graph.add_edge(START, "load_session")
     graph.add_conditional_edges(

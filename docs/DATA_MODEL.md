@@ -41,7 +41,7 @@ Campos mínimos:
 | `description` | Opcional. |
 | `status` | `active`, `completed` ou `archived`. |
 | `priority` | Inteiro binário: `0` para não prioritária ou `1` para prioritária. O padrão é `0`. |
-| `due_date` | Data de negócio opcional. |
+| `due_date` | Data de negócio; se a criação não informar uma data, o service usa o dia atual no timezone configurado. |
 | `start_at` | Horário opcional, com timezone. |
 | `end_at` | Opcional; não pode anteceder `start_at`. |
 | `completed_at` | Preenchido quando `status=completed`. |
@@ -49,7 +49,8 @@ Campos mínimos:
 
 Regras:
 
-- backlog é uma tarefa ativa sem `due_date`;
+- tarefas criadas sem data explícita recebem `due_date` igual ao dia atual;
+- registros antigos/importados sem `due_date` continuam representando backlog;
 - atrasada é uma tarefa ativa cuja data ficou antes da data local atual;
 - concluída não é reaberta nesta primeira versão sem uma decisão explícita de produto;
 - arquivada não aparece nas listas operacionais;
