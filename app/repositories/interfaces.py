@@ -3,7 +3,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.schemas.commands import TaskCreatePayload, TaskListPayload
+from app.schemas.commands import TaskCreatePayload, TaskListPayload, TaskSearchPayload
 from app.schemas.tasks import TaskListResult, TaskView
 
 
@@ -13,6 +13,16 @@ class TaskRepository(Protocol):
 
     async def get_for_user(self, user_id: UUID, task_id: UUID) -> TaskView | None:
         """Busca uma tarefa sempre dentro do escopo do usuário."""
+
+    async def complete_for_user(self, user_id: UUID, task_id: UUID) -> TaskView | None:
+        """Conclui uma tarefa ativa dentro do escopo do usuÃ¡rio."""
+
+    async def search_for_user(
+        self,
+        user_id: UUID,
+        payload: TaskSearchPayload,
+    ) -> TaskListResult:
+        """Busca candidatos textuais dentro do escopo de tarefas ativas."""
 
     async def list_for_user(
         self,

@@ -7,7 +7,14 @@ from pydantic import BaseModel, Field
 
 from app.schemas.decisions import Transition
 
-HarnessStatus = Literal["executed", "awaiting_confirmation", "rejected", "failed", "duplicate"]
+HarnessStatus = Literal[
+    "executed",
+    "awaiting_confirmation",
+    "awaiting_selection",
+    "rejected",
+    "failed",
+    "duplicate",
+]
 
 
 class HarnessResult(BaseModel):

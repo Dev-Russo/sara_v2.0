@@ -174,6 +174,12 @@ Classifica uma intenção inicial e seleciona o agente. Pode indicar cancelament
 
 Conduz captura, consulta, conclusão, edição, exclusão e remanejamento de tarefas fora do fluxo específico de planejamento.
 
+Para concluir uma tarefa mencionada por descrição, o agente produz `tasks.complete` com
+uma consulta textual. O Harness busca obrigatoriamente entre tarefas `active`: um
+candidato é concluído, enquanto vários candidatos ficam pendentes para uma escolha
+explícita do usuário. O Graph apenas armazena os candidatos e, depois da escolha,
+encaminha um comando interno `tasks.complete_by_id` usando o ID devolvido pelo Harness.
+
 ### `PlanningAgent`
 
 Conduz o planejamento de uma data-alvo, consolida escolhas e produz comandos de criação ou alteração em lote quando o usuário confirma o plano.

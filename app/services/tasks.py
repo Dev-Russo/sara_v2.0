@@ -10,9 +10,14 @@ from app.models.command_execution import CommandExecution
 from app.repositories.command_execution_repository import SqlAlchemyCommandExecutionRepository
 from app.repositories.task_repository import SqlAlchemyTaskRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
-from app.schemas.commands import TaskCreatePayload, TaskListPayload
+from app.schemas.commands import TaskCreatePayload, TaskListPayload, TaskSearchPayload
 from app.schemas.events import ExecutionContext
-from app.schemas.tasks import TaskCreationResult, TaskListResult
+from app.schemas.tasks import (
+    TaskCandidate,
+    TaskCompletionResult,
+    TaskCreationResult,
+    TaskListResult,
+)
 
 
 class TaskService:
@@ -87,6 +92,184 @@ class TaskService:
                 await user_repository.ensure_exists(context.user_id)
                 return await task_repository.list_for_user(context.user_id, payload)
 
+    async def search_tasks(
+        self,
+        context: ExecutionContext,
+        payload: TaskSearchPayload,
+    ) -> TaskListResult:
+        async with self._session_factory() as session:
+            async with session.begin():
+                user_repository = SqlAlchemyUserRepository(session)
+                task_repository = SqlAlchemyTaskRepository(session)
+
+                await user_repository.ensure_exists(context.user_id)
+                active_payload = payload.model_copy(update={"status": "active"})
+                return await task_repository.search_for_user(context.user_id, active_payload)
+
+    async def complete_task_by_query(
+        self,
+        context: ExecutionContext,
+        query: str | None,
+    ) -> TaskCompletionResult:
+        """Busca tarefas pendentes e resolve uma conclusão por descrição.
+
+        É a primeira etapa do fluxo de conclusão: pode retornar nenhum
+        candidato, um candidato para conclusão imediata ou vários candidatos
+        para ``TASK_REFERENCE_AMBIGUOUS`` e escolha posterior.
+        """
+        async with self._session_factory() as session:
+            async with session.begin():
+                user_repository = SqlAlchemyUserRepository(session)
+                task_repository = SqlAlchemyTaskRepository(session)
+                execution_repository = SqlAlchemyCommandExecutionRepository(session)
+
+                await user_repository.ensure_exists(context.user_id)
+                existing = await execution_repository.get_by_idempotency_key(
+                    context.idempotency_key,
+                )
+                if existing is not None:
+                    return await self._duplicate_completion_result(
+                        existing,
+                        task_repository,
+                        context.user_id,
+                    )
+
+                execution = await execution_repository.create_received(
+                    context,
+                    command_type="tasks.complete",
+                    command_version=1,
+                )
+                if query is None:
+                    matches = await task_repository.list_for_user(
+                        context.user_id,
+                        TaskListPayload(status="active"),
+                    )
+                else:
+                    matches = await task_repository.search_for_user(
+                        context.user_id,
+                        TaskSearchPayload(query=query, status="active"),
+                    )
+
+                candidates = [
+                    TaskCandidate(id=item.id, title=item.title, due_date=item.due_date)
+                    for item in matches.items
+                ]
+                if not candidates:
+                    effect = {
+                        "kind": "task_completion_not_found",
+                        "query": query,
+                        "filters": {"status": "active"},
+                        "items": [],
+                        "total": 0,
+                    }
+                    execution.status = "failed"
+                    execution.effect_payload = effect
+                    execution.result_summary = query or "task completion without reference"
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskCompletionResult(
+                        error_code="TASK_REFERENCE_NOT_FOUND",
+                        query=query,
+                    )
+
+                if len(candidates) > 1:
+                    effect = {
+                        "kind": "task_completion_ambiguous",
+                        "query": query,
+                        "filters": {"status": "active"},
+                        "items": [candidate.model_dump(mode="json") for candidate in candidates],
+                        "total": len(candidates),
+                    }
+                    execution.status = "awaiting_selection"
+                    execution.effect_payload = effect
+                    execution.result_summary = query or "multiple active tasks"
+                    return TaskCompletionResult(
+                        error_code="TASK_REFERENCE_AMBIGUOUS",
+                        candidates=candidates,
+                        query=query,
+                    )
+
+                task = await task_repository.complete_for_user(
+                    context.user_id,
+                    candidates[0].id,
+                )
+                if task is None:
+                    execution.status = "failed"
+                    execution.effect_payload = {
+                        "kind": "task_completion_failed",
+                        "task_id": str(candidates[0].id),
+                        "error_code": "TASK_NOT_FOUND",
+                    }
+                    execution.result_summary = str(candidates[0].id)
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskCompletionResult(error_code="TASK_NOT_FOUND", query=query)
+
+                effect = {
+                    "kind": "task_completed",
+                    "task_id": str(task.id),
+                    "title": task.title,
+                    "resolution": {"query": query, "candidate_count": 1},
+                }
+                execution.status = "executed"
+                execution.effect_payload = effect
+                execution.result_summary = task.title
+                execution.completed_at = datetime.now(UTC)
+                return TaskCompletionResult(task=task, query=query)
+
+    async def complete_task(
+        self,
+        context: ExecutionContext,
+        task_id: UUID,
+    ) -> TaskCompletionResult:
+        """Conclui diretamente uma tarefa com ID já resolvido.
+
+        O Graph/Harness usa este caminho somente depois de obter um único
+        candidato, inclusive após a seleção explícita do usuário.
+        """
+        async with self._session_factory() as session:
+            async with session.begin():
+                user_repository = SqlAlchemyUserRepository(session)
+                task_repository = SqlAlchemyTaskRepository(session)
+                execution_repository = SqlAlchemyCommandExecutionRepository(session)
+
+                await user_repository.ensure_exists(context.user_id)
+                existing = await execution_repository.get_by_idempotency_key(
+                    context.idempotency_key,
+                )
+                if existing is not None:
+                    return await self._duplicate_completion_result(
+                        existing,
+                        task_repository,
+                        context.user_id,
+                    )
+
+                execution = await execution_repository.create_received(
+                    context,
+                    command_type="tasks.complete",
+                    command_version=1,
+                )
+                task = await task_repository.complete_for_user(context.user_id, task_id)
+                if task is None:
+                    execution.status = "failed"
+                    execution.effect_payload = {
+                        "kind": "task_completion_failed",
+                        "task_id": str(task_id),
+                        "error_code": "TASK_NOT_FOUND",
+                    }
+                    execution.result_summary = str(task_id)
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskCompletionResult(error_code="TASK_NOT_FOUND")
+
+                effect = {
+                    "kind": "task_completed",
+                    "task_id": str(task.id),
+                    "title": task.title,
+                }
+                execution.status = "executed"
+                execution.effect_payload = effect
+                execution.result_summary = task.title
+                execution.completed_at = datetime.now(UTC)
+                return TaskCompletionResult(task=task)
+
     async def _duplicate_result(
         self,
         execution: CommandExecution,
@@ -101,3 +284,41 @@ class TaskService:
         if task is None:
             raise RuntimeError("idempotent task result is no longer available")
         return TaskCreationResult(task=task, duplicate=True)
+
+    async def _duplicate_completion_result(
+        self,
+        execution: CommandExecution,
+        task_repository: SqlAlchemyTaskRepository,
+        user_id: UUID,
+    ) -> TaskCompletionResult:
+        effect = execution.effect_payload or {}
+        if execution.status == "failed":
+            return TaskCompletionResult(
+                error_code=str(effect.get("error_code", "TASK_NOT_FOUND")),
+                query=effect.get("query") if isinstance(effect.get("query"), str) else None,
+            )
+        if execution.status == "awaiting_selection":
+            candidates = [
+                TaskCandidate.model_validate(item)
+                for item in effect.get("items", [])
+                if isinstance(item, dict)
+            ]
+            return TaskCompletionResult(
+                error_code="TASK_REFERENCE_AMBIGUOUS",
+                candidates=candidates,
+                query=effect.get("query") if isinstance(effect.get("query"), str) else None,
+            )
+        if execution.status != "executed" or not execution.effect_payload:
+            raise RuntimeError("idempotent completion is not in a completed state")
+
+        task_id = UUID(str(execution.effect_payload["task_id"]))
+        task = await task_repository.get_for_user(user_id, task_id)
+        if task is None:
+            raise RuntimeError("idempotent task result is no longer available")
+        return TaskCompletionResult(
+            task=task,
+            duplicate=True,
+            query=effect.get("resolution", {}).get("query")
+            if isinstance(effect.get("resolution"), dict)
+            else None,
+        )

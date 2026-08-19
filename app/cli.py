@@ -17,6 +17,7 @@ from app.config import Settings, get_settings
 from app.graph.state import GraphState
 from app.runtime import build_runtime_graph
 from app.schemas.events import ExecutionContext, MessageEvent
+from app.schemas.tasks import TaskCandidate
 
 logger = logging.getLogger(__name__)
 EXIT_COMMANDS = {"/exit", "/quit"}
@@ -30,6 +31,7 @@ class CliSession:
     user_id: UUID
     graph_thread_id: str = field(default_factory=lambda: f"cli:{uuid4()}")
     active_flow: str | None = None
+    pending_task_candidates: list[TaskCandidate] = field(default_factory=list)
     debug: bool = False
     trace_sink: Callable[[str], None] = print
 
@@ -58,11 +60,18 @@ class CliSession:
         state: GraphState = {"event": event, "context": context}
         if self.active_flow is not None:
             state["active_flow"] = self.active_flow
+        if self.pending_task_candidates:
+            state["pending_task_candidates"] = self.pending_task_candidates
 
         result = await self.graph.ainvoke(state)
         self.active_flow = result.get("active_flow")
+        self.pending_task_candidates = result.get(
+            "pending_task_candidates",
+            self.pending_task_candidates,
+        )
         if self.debug:
             self._trace_model("agent_decision", result.get("agent_decision"))
+            self._trace_model("resolved_command", result.get("resolved_command"))
             self._trace_model("harness_result", result.get("harness_result"))
         response = result.get("response_decision")
         if response is None:

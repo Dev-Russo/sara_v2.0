@@ -2,9 +2,11 @@
 
 from typing import TypedDict
 
+from app.schemas.commands import Command
 from app.schemas.decisions import AgentDecision
 from app.schemas.events import ExecutionContext, MessageEvent
 from app.schemas.results import HarnessResult, ResponseDecision
+from app.schemas.tasks import TaskCandidate
 
 
 class GraphState(TypedDict, total=False):
@@ -15,3 +17,5 @@ class GraphState(TypedDict, total=False):
     agent_decision: AgentDecision | None
     harness_result: HarnessResult | None
     response_decision: ResponseDecision | None
+    pending_task_candidates: list[TaskCandidate]
+    resolved_command: Command | None

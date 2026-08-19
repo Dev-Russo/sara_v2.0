@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.agents.task import TaskAgent
-from app.schemas.commands import TasksCreateCommand, TasksListCommand
+from app.schemas.commands import TasksCompleteCommand, TasksCreateCommand, TasksListCommand
 from app.schemas.events import ExecutionContext, MessageEvent
 
 
@@ -67,6 +67,20 @@ async def test_task_agent_rejects_invalid_llm_output_without_command() -> None:
 
 
 @pytest.mark.asyncio
+async def test_task_agent_does_not_force_completion_from_message_only() -> None:
+    llm = FakeLLMClient(
+        '{"message":"Preciso de mais detalhes.","command":null,'
+        '"transition":null,"metadata":{}}',
+    )
+    event = make_event("marque uma tarefa como concluída")
+
+    decision = await TaskAgent(llm).decide(event, make_context(event.user_id))
+
+    assert decision.command is None
+    assert decision.message == "Preciso de mais detalhes."
+
+
+@pytest.mark.asyncio
 async def test_task_agent_normalizes_today_for_task_listing() -> None:
     llm = FakeLLMClient(
         '{"message":null,"command":{"type":"tasks.list",'
@@ -86,3 +100,18 @@ async def test_task_agent_normalizes_today_for_task_listing() -> None:
     assert isinstance(decision.command, TasksListCommand)
     assert decision.command.payload.due_date_from.isoformat() == "2026-08-18"
     assert decision.command.payload.due_date_to.isoformat() == "2026-08-18"
+
+
+@pytest.mark.asyncio
+async def test_task_agent_uses_complete_intent_for_description() -> None:
+    llm = FakeLLMClient(
+        '{"message":null,"command":{"type":"tasks.complete",'
+        '"payload":{"query":"academia"}},'
+        '"transition":null,"metadata":{}}',
+    )
+    event = make_event("marque academia como concluída")
+
+    decision = await TaskAgent(llm).decide(event, make_context(event.user_id))
+
+    assert isinstance(decision.command, TasksCompleteCommand)
+    assert decision.command.payload.query == "academia"

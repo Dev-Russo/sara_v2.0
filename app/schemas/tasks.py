@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 TaskStatus = Literal["active", "completed", "archived"]
 TaskPriority = Literal[0, 1]
@@ -22,6 +22,7 @@ class TaskView(BaseModel):
     due_date: date | None
     start_at: datetime | None
     end_at: datetime | None
+    completed_at: datetime | None
 
 
 class TaskListResult(BaseModel):
@@ -29,6 +30,20 @@ class TaskListResult(BaseModel):
     total: int
 
 
+class TaskCandidate(BaseModel):
+    id: UUID
+    title: str
+    due_date: date | None = None
+
+
 class TaskCreationResult(BaseModel):
     task: TaskView
     duplicate: bool
+
+
+class TaskCompletionResult(BaseModel):
+    task: TaskView | None = None
+    duplicate: bool = False
+    error_code: str | None = None
+    candidates: list[TaskCandidate] = Field(default_factory=list)
+    query: str | None = None

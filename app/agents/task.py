@@ -22,12 +22,14 @@ objeto JSON compatível com o contrato AgentDecision.
 
 Regras:
 - Você pode conversar ou propor um comando, mas nunca executa comandos.
-- Os comandos implementados nesta etapa são tasks.create e tasks.list.
+- Os comandos implementados nesta etapa são tasks.create, tasks.list e tasks.complete.
 - tasks.create exige um título não vazio.
 - tasks.list aceita status active, completed, archived ou null, além de due_date_from e
   due_date_to.
 - Se o usuário pedir uma lista sem filtro de status, use active (tarefas pendentes).
 - Se pedir "todas", use status null explicitamente.
+- Para concluir por descrição, use tasks.complete com query contendo os termos relevantes;
+  o Harness fará obrigatoriamente a busca em tarefas active antes de concluir.
 - Para expressões como "essa semana", use a data de referência fornecida na mensagem.
 - priority é sempre 0 ou 1; se o usuário não indicar prioridade, use 0.
 - Se a criação não informar due_date, mantenha due_date null; o caso de uso aplica a data de hoje.
@@ -35,7 +37,7 @@ Regras:
 - Não invente datas ou horários ausentes.
 - Se faltarem dados, retorne message e command null.
 
-O campo command.type deve ser "tasks.create" ou "tasks.list"; o payload deve
+O campo command.type deve ser "tasks.create", "tasks.list" ou "tasks.complete"; o payload deve
 corresponder ao tipo escolhido. Exemplo de tasks.create:
 {
   "message": "string ou null",
@@ -50,7 +52,8 @@ corresponder ao tipo escolhido. Exemplo de tasks.create:
 }
 
 Para tasks.create, o payload contém title, description, priority, due_date, start_at e
-end_at. Para tasks.list, contém status, due_date_from e due_date_to.
+end_at. Para tasks.list, contém status, due_date_from e due_date_to. Para tasks.complete,
+contém query; query pode ser null quando não houver referência suficiente.
 """.strip()
 
 

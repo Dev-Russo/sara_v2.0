@@ -37,6 +37,7 @@ class HarnessResult:
     status: Literal[
         "executed",
         "awaiting_confirmation",
+        "awaiting_selection",
         "rejected",
         "failed",
         "duplicate",
@@ -102,7 +103,8 @@ Uma etapa que falha encerra o pipeline. O Harness não “tenta compensar” uma
 | --- | --- | --- |
 | `tasks.create` | Criar uma tarefa. | Não |
 | `tasks.list` | Consultar tarefas por período/status. | Não |
-| `tasks.complete` | Concluir uma tarefa. | Não |
+| `tasks.complete` | Buscar tarefas pendentes por referência e concluir quando houver um único candidato. | Não |
+| `tasks.complete_by_id` | Concluir internamente a tarefa selecionada pelo Graph. | Não |
 | `tasks.update` | Editar uma tarefa. | Não |
 | `tasks.reschedule` | Alterar data/horário de uma tarefa. | Não |
 | `tasks.delete` | Excluir uma tarefa. | Sim |

@@ -53,6 +53,40 @@ class DeterministicResponseAgent:
             if result.status == "executed":
                 return ResponseDecision(message=f"Tarefa criada: {title}.")
 
+        if result.command_type in {"tasks.complete", "tasks.complete_by_id"}:
+            if result.status == "awaiting_selection":
+                items = effect.get("items", [])
+                titles = [
+                    item.get("title")
+                    for item in items
+                    if isinstance(item, dict) and isinstance(item.get("title"), str)
+                ]
+                visible_titles = "; ".join(
+                    f"{index}. {title}" for index, title in enumerate(titles[:5], start=1)
+                )
+                return ResponseDecision(
+                    message=(
+                        f"Encontrei mais de uma tarefa: {visible_titles}. "
+                        "Qual delas deseja concluir?"
+                    ),
+                )
+            if result.status == "failed" and result.error_code == "TASK_REFERENCE_NOT_FOUND":
+                return ResponseDecision(
+                    message=(
+                        "N\u00e3o encontrei essa tarefa pendente. "
+                        "Pode descrever melhor a tarefa?"
+                    ),
+                )
+            if result.status == "failed" and result.error_code == "TASK_NOT_FOUND":
+                return ResponseDecision(message="NÃ£o encontrei essa tarefa pendente.")
+            if isinstance(title, str):
+                if result.status == "duplicate":
+                    return ResponseDecision(
+                        message=f"A tarefa j\u00e1 estava conclu\u00edda: {title}.",
+                    )
+                if result.status == "executed":
+                    return ResponseDecision(message=f"Tarefa conclu\u00edda: {title}.")
+
         if result.status == "rejected":
             return ResponseDecision(message="NÃ£o foi possÃ­vel executar esse comando.")
         if result.status == "awaiting_confirmation":
