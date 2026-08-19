@@ -53,7 +53,10 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
             },
         )
 
-    async def complete_task(command: Command, context: ExecutionContext) -> HarnessResult:
+    async def complete_task_by_query(
+        command: Command,
+        context: ExecutionContext,
+    ) -> HarnessResult:
         """Resolve uma referência textual antes de concluir a tarefa.
 
         Este é o primeiro passo do fluxo: a busca trata zero, um ou vários
@@ -118,7 +121,7 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
         if not isinstance(command, TasksCompleteByIdCommand):
             raise TypeError("tasks.complete_by_id handler received an incompatible command")
 
-        outcome = await task_service.complete_task(context, command.payload.task_id)
+        outcome = await task_service.complete_task_by_id(context, command.payload.task_id)
         if outcome.error_code is not None:
             return HarnessResult(
                 status="failed",
@@ -144,7 +147,7 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
     list_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = list_tasks
     registry.register("tasks.list", list_handler)
     complete_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
-        complete_task
+        complete_task_by_query
     )
     registry.register("tasks.complete", complete_handler)
     complete_by_id_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (

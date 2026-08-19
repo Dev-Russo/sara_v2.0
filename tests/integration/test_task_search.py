@@ -32,7 +32,7 @@ async def test_task_search_returns_only_active_text_matches(
         make_context(user_id=user_id, idempotency_key="search-completed-create"),
         TaskCreatePayload(title="Voltar à academia"),
     )
-    await service.complete_task(
+    await service.complete_task_by_id(
         make_context(user_id=user_id, idempotency_key="search-completed"),
         completed.task.id,
     )

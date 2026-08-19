@@ -188,34 +188,15 @@ class TaskService:
                         query=query,
                     )
 
-                task = await task_repository.complete_for_user(
-                    context.user_id,
-                    candidates[0].id,
+                return await self._complete_task_by_id(
+                    context=context,
+                    task_repository=task_repository,
+                    execution=execution,
+                    task_id=candidates[0].id,
+                    query=query,
                 )
-                if task is None:
-                    execution.status = "failed"
-                    execution.effect_payload = {
-                        "kind": "task_completion_failed",
-                        "task_id": str(candidates[0].id),
-                        "error_code": "TASK_NOT_FOUND",
-                    }
-                    execution.result_summary = str(candidates[0].id)
-                    execution.completed_at = datetime.now(UTC)
-                    return TaskCompletionResult(error_code="TASK_NOT_FOUND", query=query)
 
-                effect = {
-                    "kind": "task_completed",
-                    "task_id": str(task.id),
-                    "title": task.title,
-                    "resolution": {"query": query, "candidate_count": 1},
-                }
-                execution.status = "executed"
-                execution.effect_payload = effect
-                execution.result_summary = task.title
-                execution.completed_at = datetime.now(UTC)
-                return TaskCompletionResult(task=task, query=query)
-
-    async def complete_task(
+    async def complete_task_by_id(
         self,
         context: ExecutionContext,
         task_id: UUID,
@@ -244,31 +225,51 @@ class TaskService:
 
                 execution = await execution_repository.create_received(
                     context,
-                    command_type="tasks.complete",
+                    command_type="tasks.complete_by_id",
                     command_version=1,
                 )
-                task = await task_repository.complete_for_user(context.user_id, task_id)
-                if task is None:
-                    execution.status = "failed"
-                    execution.effect_payload = {
-                        "kind": "task_completion_failed",
-                        "task_id": str(task_id),
-                        "error_code": "TASK_NOT_FOUND",
-                    }
-                    execution.result_summary = str(task_id)
-                    execution.completed_at = datetime.now(UTC)
-                    return TaskCompletionResult(error_code="TASK_NOT_FOUND")
+                return await self._complete_task_by_id(
+                    context=context,
+                    task_repository=task_repository,
+                    execution=execution,
+                    task_id=task_id,
+                )
 
-                effect = {
-                    "kind": "task_completed",
-                    "task_id": str(task.id),
-                    "title": task.title,
-                }
-                execution.status = "executed"
-                execution.effect_payload = effect
-                execution.result_summary = task.title
-                execution.completed_at = datetime.now(UTC)
-                return TaskCompletionResult(task=task)
+    async def _complete_task_by_id(
+        self,
+        *,
+        context: ExecutionContext,
+        task_repository: SqlAlchemyTaskRepository,
+        execution: CommandExecution,
+        task_id: UUID,
+        query: str | None = None,
+    ) -> TaskCompletionResult:
+        """Aplica a mutação comum depois que o ID já foi resolvido."""
+
+        task = await task_repository.complete_for_user(context.user_id, task_id)
+        if task is None:
+            execution.status = "failed"
+            execution.effect_payload = {
+                "kind": "task_completion_failed",
+                "task_id": str(task_id),
+                "error_code": "TASK_NOT_FOUND",
+            }
+            execution.result_summary = str(task_id)
+            execution.completed_at = datetime.now(UTC)
+            return TaskCompletionResult(error_code="TASK_NOT_FOUND", query=query)
+
+        effect: dict[str, object] = {
+            "kind": "task_completed",
+            "task_id": str(task.id),
+            "title": task.title,
+        }
+        if query is not None:
+            effect["resolution"] = {"query": query, "candidate_count": 1}
+        execution.status = "executed"
+        execution.effect_payload = effect
+        execution.result_summary = task.title
+        execution.completed_at = datetime.now(UTC)
+        return TaskCompletionResult(task=task, query=query)
 
     async def _duplicate_result(
         self,

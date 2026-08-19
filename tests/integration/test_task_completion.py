@@ -33,7 +33,7 @@ async def test_task_service_completes_task_by_id(
         TaskCreatePayload(title="Ir à academia"),
     )
 
-    result = await service.complete_task(
+    result = await service.complete_task_by_id(
         make_context(user_id=user_id, idempotency_key="completion-complete"),
         created.task.id,
     )
