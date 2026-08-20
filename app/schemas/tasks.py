@@ -54,4 +54,6 @@ class TaskUpdateResult(BaseModel):
     changed_fields: list[str] = Field(default_factory=list)
     duplicate: bool = False
     error_code: str | None = None
+    candidates: list[TaskCandidate] = Field(default_factory=list)
+    query: str | None = None
     effect: dict[str, object] | None = None

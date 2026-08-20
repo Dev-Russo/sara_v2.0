@@ -2,7 +2,7 @@
 
 from typing import TypedDict
 
-from app.schemas.commands import Command
+from app.schemas.commands import Command, TaskUpdatePayload
 from app.schemas.decisions import AgentDecision
 from app.schemas.events import ExecutionContext, MessageEvent
 from app.schemas.results import HarnessResult, ResponseDecision
@@ -18,4 +18,5 @@ class GraphState(TypedDict, total=False):
     harness_result: HarnessResult | None
     response_decision: ResponseDecision | None
     pending_task_candidates: list[TaskCandidate]
+    pending_task_update: TaskUpdatePayload | None
     resolved_command: Command | None

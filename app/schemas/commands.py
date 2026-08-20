@@ -8,7 +8,7 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 TaskStatus = Literal["active", "completed", "archived"]
 TaskPriority = Literal[0, 1]
@@ -16,9 +16,6 @@ TASK_UPDATE_FIELDS = (
     "title",
     "description",
     "priority",
-    "due_date",
-    "start_at",
-    "end_at",
 )
 
 
@@ -75,14 +72,12 @@ class TaskSearchPayload(BaseModel):
         return normalized
 
 
-class TaskUpdatePayload(BaseModel):
-    task_id: UUID
+class TaskUpdateChanges(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = Field(default=None, min_length=1)
     description: str | None = None
     priority: TaskPriority | None = None
-    due_date: date | None = None
-    start_at: datetime | None = None
-    end_at: datetime | None = None
 
     @field_validator("title")
     @classmethod
@@ -95,14 +90,30 @@ class TaskUpdatePayload(BaseModel):
         return normalized
 
     @model_validator(mode="after")
-    def must_contain_change(self) -> "TaskUpdatePayload":
+    def must_contain_change(self) -> "TaskUpdateChanges":
         if not self.model_fields_set.intersection(TASK_UPDATE_FIELDS):
             raise ValueError("task update must contain at least one change")
         if "title" in self.model_fields_set and self.title is None:
             raise ValueError("task title cannot be cleared")
-        if self.start_at and self.end_at and self.end_at < self.start_at:
-            raise ValueError("end_at cannot precede start_at")
+        if "priority" in self.model_fields_set and self.priority is None:
+            raise ValueError("task priority cannot be cleared")
         return self
+
+
+class TaskUpdatePayload(TaskUpdateChanges):
+    query: str = Field(min_length=1)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_blank(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("task update query must not be blank")
+        return normalized
+
+
+class TaskUpdateByIdPayload(TaskUpdateChanges):
+    task_id: UUID
 
 
 class TaskIdPayload(BaseModel):
@@ -181,6 +192,11 @@ class TasksUpdateCommand(CommandBase):
     payload: TaskUpdatePayload
 
 
+class TasksUpdateByIdCommand(CommandBase):
+    type: Literal["tasks.update_by_id"]
+    payload: TaskUpdateByIdPayload
+
+
 class TasksRescheduleCommand(CommandBase):
     type: Literal["tasks.reschedule"]
     payload: TaskReschedulePayload
@@ -238,6 +254,7 @@ Command = Annotated[
         | TasksCompleteCommand
         | TasksCompleteByIdCommand
         | TasksUpdateCommand
+        | TasksUpdateByIdCommand
         | TasksRescheduleCommand
         | TasksDeleteCommand
         | TasksCreateManyCommand

@@ -9,6 +9,7 @@ from app.schemas.commands import (
     TasksCompleteCommand,
     TasksCreateCommand,
     TasksListCommand,
+    TasksUpdateByIdCommand,
     TasksUpdateCommand,
 )
 from app.schemas.events import ExecutionContext
@@ -54,11 +55,40 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
             },
         )
 
-    async def update_task(command: Command, context: ExecutionContext) -> HarnessResult:
+    async def update_task_by_query(command: Command, context: ExecutionContext) -> HarnessResult:
         if not isinstance(command, TasksUpdateCommand):
             raise TypeError("tasks.update handler received an incompatible command")
 
         outcome = await task_service.update_task(context, command.payload)
+        if outcome.error_code == "TASK_REFERENCE_AMBIGUOUS":
+            return HarnessResult(
+                status="awaiting_selection",
+                command_id=command.command_id,
+                command_type=command.type,
+                effect=outcome.effect,
+            )
+        if outcome.error_code is not None:
+            return HarnessResult(
+                status="failed",
+                command_id=command.command_id,
+                command_type=command.type,
+                error_code=outcome.error_code,
+                effect=outcome.effect,
+            )
+        if outcome.task is None:
+            raise RuntimeError("successful task update has no task result")
+        return HarnessResult(
+            status="duplicate" if outcome.duplicate else "executed",
+            command_id=command.command_id,
+            command_type=command.type,
+            effect=outcome.effect,
+        )
+
+    async def update_task_by_id(command: Command, context: ExecutionContext) -> HarnessResult:
+        if not isinstance(command, TasksUpdateByIdCommand):
+            raise TypeError("tasks.update_by_id handler received an incompatible command")
+
+        outcome = await task_service.update_task_by_id(context, command.payload)
         if outcome.error_code is not None:
             return HarnessResult(
                 status="failed",
@@ -169,8 +199,14 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
     registry.register("tasks.create", handler)
     list_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = list_tasks
     registry.register("tasks.list", list_handler)
-    update_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = update_task
+    update_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
+        update_task_by_query
+    )
     registry.register("tasks.update", update_handler)
+    update_by_id_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
+        update_task_by_id
+    )
+    registry.register("tasks.update_by_id", update_by_id_handler)
     complete_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
         complete_task_by_query
     )

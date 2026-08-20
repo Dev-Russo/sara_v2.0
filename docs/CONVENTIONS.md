@@ -81,9 +81,13 @@ Não criar uma abstração genérica sem variação real. Quando houver mais de 
 - Schemas de entrada e saída são explícitos.
 - `dict[str, Any]` não substitui um schema quando o dado atravessa módulos.
 - Campos opcionais têm semântica documentada; `null` não significa automaticamente “não alterar”.
-- Em `TaskUpdatePayload`, campo omitido significa “não alterar” e `null` explícito limpa
-  campos anuláveis (`description`, `due_date`, `start_at` e `end_at`); título não pode
-  ser limpo.
+- Em `TaskUpdatePayload`, `query` referencia uma tarefa ativa por título ou descrição.
+  Campo de alteração omitido significa “não alterar”; `null` explícito limpa somente
+  `description`, e título/prioridade não podem ser limpos.
+- `tasks.update` altera somente `title`, `description` e `priority`. Datas e horários
+  pertencem a `tasks.reschedule`.
+- `tasks.update_by_id` é um comando interno do Harness para aplicar uma alteração depois
+  que a resolução textual selecionou um único UUID; o agente não deve inventar IDs.
 - Mensagens para o usuário não são usadas como fonte de verdade de sucesso.
 - `HarnessResult.effect` é a fonte de verdade para a resposta pós-execução.
 - Versões de comando devem ser consideradas quando o payload persistir.

@@ -59,7 +59,7 @@ async def test_response_agent_verbalizes_task_update_effect() -> None:
             "kind": "task_updated",
             "task_id": str(uuid4()),
             "title": "Revisar documento final",
-            "changed_fields": ["title", "priority", "due_date"],
+            "changed_fields": ["title", "priority", "description"],
         },
     )
 
@@ -67,7 +67,8 @@ async def test_response_agent_verbalizes_task_update_effect() -> None:
 
     assert decision.message == (
         "Tarefa atualizada: Revisar documento final. "
-        "Campos alterados: t" + chr(0xED) + "tulo, prioridade e data."
+        "Campos alterados: t" + chr(0xED) + "tulo, prioridade e descri"
+        + chr(0xE7) + chr(0xE3) + "o."
     )
 
 

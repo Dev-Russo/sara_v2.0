@@ -46,14 +46,26 @@ class DeterministicResponseAgent:
                 message=f"Encontrei {total} tarefas: {visible_titles}{suffix}.",
             )
 
-        if result.command_type == "tasks.update":
-            if result.status == "failed" and result.error_code == "TASK_NOT_FOUND":
+        if result.command_type in {"tasks.update", "tasks.update_by_id"}:
+            if result.status == "failed" and result.error_code in {
+                "TASK_NOT_FOUND",
+                "TASK_REFERENCE_NOT_FOUND",
+            }:
                 return ResponseDecision(message="Não encontrei essa tarefa.")
-            if result.status == "failed" and result.error_code == "INVALID_TASK_TIME_RANGE":
+            if result.status == "awaiting_selection":
+                items = effect.get("items", [])
+                titles = [
+                    item.get("title")
+                    for item in items
+                    if isinstance(item, dict) and isinstance(item.get("title"), str)
+                ]
+                visible_titles = "; ".join(
+                    f"{index}. {title}" for index, title in enumerate(titles[:5], start=1)
+                )
                 return ResponseDecision(
                     message=(
-                        "O hor" + chr(0xE1) + "rio final n" + chr(0xE3)
-                        + "o pode ser anterior ao inicial."
+                        f"Encontrei mais de uma tarefa: {visible_titles}. "
+                        "Qual delas deseja atualizar?"
                     ),
                 )
 
@@ -77,9 +89,6 @@ class DeterministicResponseAgent:
                     "title": "t" + chr(0xED) + "tulo",
                     "description": "descri" + chr(0xE7) + chr(0xE3) + "o",
                     "priority": "prioridade",
-                    "due_date": "data",
-                    "start_at": "hor" + chr(0xE1) + "rio inicial",
-                    "end_at": "hor" + chr(0xE1) + "rio final",
                 }
                 visible_fields = (
                     [

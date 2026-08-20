@@ -123,17 +123,16 @@ async def test_task_agent_uses_complete_intent_for_description() -> None:
 
 
 @pytest.mark.asyncio
-async def test_task_agent_uses_update_intent_and_normalizes_relative_due_date() -> None:
-    task_id = uuid4()
+async def test_task_agent_uses_update_intent_without_schedule_fields() -> None:
     llm = FakeLLMClient(
         '{"message":null,"command":{"type":"tasks.update",'
-        f'"payload":{{"task_id":"{task_id}","title":"Estudar contratos",'
-        '"due_date":"2026-08-20"},"transition":null,"metadata":{}}}',
+        '"payload":{"query":"Estudar contratos","title":"Estudar contratos",'
+        '"priority":1},"transition":null,"metadata":{}}}',
     )
     event = MessageEvent(
         event_id="update-task-event",
         user_id=uuid4(),
-        text="altere a tarefa para amanhã",
+        text="altere estudar contratos para amanhã",
         received_at=datetime(2026, 8, 18, 23, 0, tzinfo=UTC),
         source="test",
     )
@@ -141,6 +140,7 @@ async def test_task_agent_uses_update_intent_and_normalizes_relative_due_date() 
     decision = await TaskAgent(llm).decide(event, make_context(event.user_id))
 
     assert isinstance(decision.command, TasksUpdateCommand)
-    assert decision.command.payload.task_id == task_id
+    assert decision.command.payload.query == "Estudar contratos"
     assert decision.command.payload.title == "Estudar contratos"
-    assert decision.command.payload.due_date.isoformat() == "2026-08-19"
+    assert decision.command.payload.priority == 1
+    assert "due_date" not in decision.command.payload.model_fields_set

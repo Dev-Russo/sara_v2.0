@@ -15,7 +15,7 @@ from app.graph.nodes import (
     route_flow,
     route_harness_result,
     run_task_agent,
-    store_task_completion_candidates,
+    store_task_reference_candidates,
     unsupported_flow,
 )
 from app.graph.state import GraphState
@@ -43,7 +43,7 @@ def build_graph(
         return await render_response(state, selected_response_agent)
 
     async def selection_storage_node(state: GraphState) -> GraphState:
-        return await store_task_completion_candidates(state)
+        return await store_task_reference_candidates(state)
 
     async def pending_choice_node(state: GraphState) -> GraphState:
         return await resolve_pending_task_choice(state, harness)
@@ -52,7 +52,7 @@ def build_graph(
     graph.add_node("task_agent", task_agent_node)
     graph.add_node("normalize_decision", normalize_decision)
     graph.add_node("execute_command", harness_node)
-    graph.add_node("store_task_completion_candidates", selection_storage_node)
+    graph.add_node("store_task_reference_candidates", selection_storage_node)
     graph.add_node("resolve_pending_task_choice", pending_choice_node)
     graph.add_node("unsupported_flow", unsupported_flow)
     graph.add_node("render_response", response_node)
@@ -77,11 +77,11 @@ def build_graph(
         "execute_command",
         route_harness_result,
         {
-            "store_selection": "store_task_completion_candidates",
+            "store_selection": "store_task_reference_candidates",
             "respond": "render_response",
         },
     )
-    graph.add_edge("store_task_completion_candidates", "render_response")
+    graph.add_edge("store_task_reference_candidates", "render_response")
     graph.add_edge("resolve_pending_task_choice", "render_response")
     graph.add_edge("unsupported_flow", "render_response")
     graph.add_edge("render_response", END)

@@ -11,6 +11,9 @@ from app.schemas.commands import (
     TaskCreatePayload,
     TasksCreateCommand,
     TasksListCommand,
+    TasksUpdateByIdCommand,
+    TasksUpdateCommand,
+    TaskUpdateByIdPayload,
     TaskUpdatePayload,
 )
 
@@ -51,24 +54,53 @@ def test_blank_task_title_is_rejected() -> None:
 
 def test_task_update_normalizes_title() -> None:
     payload = TaskUpdatePayload(
-        task_id=uuid4(),
+        query="  revisar   documento  ",
         title="  revisar   documento final  ",
     )
 
     assert payload.title == "revisar documento final"
+    assert payload.query == "revisar documento"
 
 
 def test_task_update_requires_a_field_and_allows_clearing_nullable_fields() -> None:
-    clear_description = TaskUpdatePayload(task_id=uuid4(), description=None)
+    clear_description = TaskUpdatePayload(query="documento", description=None)
 
     assert "description" in clear_description.model_fields_set
     assert clear_description.description is None
 
     with pytest.raises(ValidationError):
-        TaskUpdatePayload(task_id=uuid4())
+        TaskUpdatePayload(query="documento")
 
     with pytest.raises(ValidationError):
-        TaskUpdatePayload(task_id=uuid4(), title=None)
+        TaskUpdatePayload(query="documento", title=None)
+
+    with pytest.raises(ValidationError):
+        TaskUpdatePayload(query="documento", due_date=date(2026, 8, 20))
+
+    with pytest.raises(ValidationError):
+        TaskUpdatePayload(query="documento", priority=1, due_date=date(2026, 8, 20))
+
+    with pytest.raises(ValidationError):
+        TaskUpdatePayload(query="documento", priority=None)
+
+
+def test_task_update_by_id_reuses_update_change_contract() -> None:
+    command = TasksUpdateByIdCommand(
+        type="tasks.update_by_id",
+        payload={"task_id": uuid4(), "description": None, "priority": 1},
+    )
+
+    assert isinstance(command.payload, TaskUpdateByIdPayload)
+    assert command.payload.model_fields_set == {"task_id", "description", "priority"}
+
+
+def test_task_update_command_uses_textual_reference() -> None:
+    command = TasksUpdateCommand(
+        type="tasks.update",
+        payload={"query": "estudar arquitetura", "title": "Estudar sistemas"},
+    )
+
+    assert command.payload.query == "estudar arquitetura"
 
 
 def test_task_list_defaults_to_active_and_allows_explicit_all() -> None:

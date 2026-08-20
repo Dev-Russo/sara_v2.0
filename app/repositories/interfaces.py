@@ -7,7 +7,7 @@ from app.schemas.commands import (
     TaskCreatePayload,
     TaskListPayload,
     TaskSearchPayload,
-    TaskUpdatePayload,
+    TaskUpdateChanges,
 )
 from app.schemas.tasks import TaskListResult, TaskView
 
@@ -25,7 +25,8 @@ class TaskRepository(Protocol):
     async def update_for_user(
         self,
         user_id: UUID,
-        payload: TaskUpdatePayload,
+        task_id: UUID,
+        payload: TaskUpdateChanges,
     ) -> TaskView | None:
         """Atualiza uma tarefa pertencente ao usuÃƒÂ¡rio dentro da transaÃ§Ã£o."""
 

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from app.integrations.llm.interface import LLMClient
-from app.schemas.commands import TasksCreateCommand, TasksListCommand, TasksUpdateCommand
+from app.schemas.commands import TasksCreateCommand, TasksListCommand
 from app.schemas.decisions import AgentDecision
 from app.schemas.events import ExecutionContext, MessageEvent
 
@@ -28,12 +28,14 @@ Regras:
   due_date_to.
 - Se o usuário pedir uma lista sem filtro de status, use active (tarefas pendentes).
 - Se pedir "todas", use status null explicitamente.
-- Para editar uma tarefa, use tasks.update somente quando o task_id estiver disponível; nunca
-  invente um ID. O payload pode alterar title, description, priority, due_date, start_at ou end_at.
+- Para editar uma tarefa, use tasks.update com query contendo os termos relevantes da tarefa;
+  o Harness resolverá o candidato. O payload pode alterar somente title, description ou priority.
+- Não use tasks.update para datas ou horários; alterações de agenda pertencem ao rescheduler.
 - Para concluir por descrição, use tasks.complete com query contendo os termos relevantes;
   o Harness fará obrigatoriamente a busca em tarefas active antes de concluir.
 - Para expressões como "essa semana", use a data de referência fornecida na mensagem.
-- priority é sempre 0 ou 1; se o usuário não indicar prioridade, use 0.
+- priority é sempre 0 ou 1; em tasks.create, se o usuário não indicar prioridade, use 0.
+  Em tasks.update, omita priority quando ele não for alterado.
 - Se a criação não informar due_date, mantenha due_date null; o caso de uso aplica a data de hoje.
 - Nunca inclua user_id no payload; essa informação vem do contexto confiável.
 - Não invente datas ou horários ausentes.
@@ -56,7 +58,7 @@ o payload deve corresponder ao tipo escolhido. Exemplo de tasks.create:
 Para tasks.create, o payload contém title, description, priority, due_date, start_at e
 end_at. Para tasks.list, contém status, due_date_from e due_date_to. Para tasks.complete,
 contém query; query pode ser null quando não houver referência suficiente.
-Para tasks.update, contém task_id e pelo menos um campo a alterar.
+Para tasks.update, contém query e pelo menos um campo a alterar entre title, description e priority.
 """.strip()
 
 
@@ -118,8 +120,6 @@ class TaskAgent:
                 update={"due_date_from": target_date, "due_date_to": target_date},
             )
         elif isinstance(command, TasksCreateCommand):
-            payload = command.payload.model_copy(update={"due_date": target_date})
-        elif isinstance(command, TasksUpdateCommand):
             payload = command.payload.model_copy(update={"due_date": target_date})
         else:
             return decision

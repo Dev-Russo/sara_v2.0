@@ -15,15 +15,22 @@ from app.services.tasks import TaskService
 
 
 class UpdateTaskLLM:
-    def __init__(self, task_id: UUID) -> None:
-        self.task_id = task_id
-
     async def complete(self, *, system_prompt: str, user_message: str) -> str:
         del system_prompt, user_message
         return (
             '{"message":null,"command":{"type":"tasks.update",'
-            f'"payload":{{"task_id":"{self.task_id}","title":"Preparar apresentação",'
+            '"payload":{"query":"Preparar rascunho","title":"Preparar apresenta\\u00e7\\u00e3o",'
             '"priority":1},"transition":null,"metadata":{}}}'
+        )
+
+
+class AmbiguousUpdateTaskLLM:
+    async def complete(self, *, system_prompt: str, user_message: str) -> str:
+        del system_prompt, user_message
+        return (
+            '{"message":null,"command":{"type":"tasks.update",'
+            '"payload":{"query":"academia","priority":1},'
+            '"transition":null,"metadata":{}}}'
         )
 
 
@@ -46,7 +53,7 @@ async def test_graph_executes_task_update_from_agent_through_harness(
     register_task_handlers(registry, service)
     harness = Harness(registry)
     user_id = uuid4()
-    created = await service.create_task(
+    await service.create_task(
         ExecutionContext(
             user_id=user_id,
             graph_thread_id="graph-task-update-create",
@@ -57,7 +64,7 @@ async def test_graph_executes_task_update_from_agent_through_harness(
         TaskCreatePayload(title="Preparar rascunho"),
     )
     graph = build_graph(
-        task_agent=TaskAgent(UpdateTaskLLM(created.task.id)),
+        task_agent=TaskAgent(UpdateTaskLLM()),
         harness=harness,
     )
 
@@ -79,6 +86,79 @@ async def test_graph_executes_task_update_from_agent_through_harness(
     assert result["harness_result"].effect["kind"] == "task_updated"
     assert result["harness_result"].effect["changed_fields"] == ["title", "priority"]
     assert result["response_decision"].message == (
-        "Tarefa atualizada: Preparar apresentação. "
+        "Tarefa atualizada: Preparar apresenta\u00e7\u00e3o. "
         f"Campos alterados: t{chr(0xED)}tulo e prioridade."
     )
+
+
+@pytest.mark.asyncio
+async def test_graph_resolves_ambiguous_update_after_user_selects_candidate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    service = TaskService(session_factory)
+    user_id = uuid4()
+    await service.create_task(
+        ExecutionContext(
+            user_id=user_id,
+            graph_thread_id="graph-ambiguous-update-first",
+            correlation_id="graph-ambiguous-update-first",
+            idempotency_key="graph-ambiguous-update-first",
+            source="test",
+        ),
+        TaskCreatePayload(title="Ir \u00e0 academia de manh\u00e3"),
+    )
+    second = await service.create_task(
+        ExecutionContext(
+            user_id=user_id,
+            graph_thread_id="graph-ambiguous-update-second",
+            correlation_id="graph-ambiguous-update-second",
+            idempotency_key="graph-ambiguous-update-second",
+            source="test",
+        ),
+        TaskCreatePayload(title="Ir \u00e0 academia \u00e0 noite"),
+    )
+    registry = CommandRegistry()
+    register_task_handlers(registry, service)
+    graph = build_graph(
+        task_agent=TaskAgent(AmbiguousUpdateTaskLLM()),
+        harness=Harness(registry),
+    )
+
+    first_result = await graph.ainvoke(
+        {
+            "event": MessageEvent(
+                event_id="graph-ambiguous-update-event",
+                user_id=user_id,
+                text="mude academia para prioridade alta",
+                received_at=datetime.now(UTC),
+                source="test",
+            ),
+            "context": make_context(user_id=user_id),
+        },
+    )
+
+    assert first_result["harness_result"].status == "awaiting_selection"
+    assert first_result["pending_task_update"].query == "academia"
+    assert first_result["response_decision"].message == (
+        "Encontrei mais de uma tarefa: 1. Ir \u00e0 academia de manh\u00e3; "
+        "2. Ir \u00e0 academia \u00e0 noite. Qual delas deseja atualizar?"
+    )
+
+    selected_result = await graph.ainvoke(
+        {
+            "event": MessageEvent(
+                event_id="graph-ambiguous-update-selection",
+                user_id=user_id,
+                text="a segunda",
+                received_at=datetime.now(UTC),
+                source="test",
+            ),
+            "context": make_context(user_id=user_id),
+            "pending_task_candidates": first_result["pending_task_candidates"],
+            "pending_task_update": first_result["pending_task_update"],
+        },
+    )
+
+    assert selected_result["harness_result"].command_type == "tasks.update_by_id"
+    assert selected_result["harness_result"].effect["task_id"] == str(second.task.id)
+    assert selected_result["harness_result"].effect["changed_fields"] == ["priority"]

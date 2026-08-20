@@ -10,7 +10,13 @@ from app.agents.response import ResponseAgent
 from app.agents.supervisor import select_flow
 from app.graph.state import GraphState
 from app.harness.service import Harness
-from app.schemas.commands import TaskIdPayload, TasksCompleteByIdCommand
+from app.schemas.commands import (
+    TaskIdPayload,
+    TasksCompleteByIdCommand,
+    TasksUpdateByIdCommand,
+    TasksUpdateCommand,
+    TaskUpdateByIdPayload,
+)
 from app.schemas.results import ResponseDecision
 from app.schemas.tasks import TaskCandidate
 
@@ -77,28 +83,34 @@ def route_harness_result(state: GraphState) -> HarnessRoute:
     result = state.get("harness_result")
     if (
         result is not None
-        and result.command_type == "tasks.complete"
+        and result.command_type in {"tasks.complete", "tasks.update"}
         and result.status == "awaiting_selection"
     ):
         return "store_selection"
     return "respond"
 
 
-async def store_task_completion_candidates(state: GraphState) -> GraphState:
+async def store_task_reference_candidates(state: GraphState) -> GraphState:
     """Conclui automaticamente somente quando a busca retorna um candidato."""
 
     result = state["harness_result"]
     effect = result.effect or {}
     raw_items = effect.get("items", [])
     if not isinstance(raw_items, list):
-        return {"pending_task_candidates": []}
+        return {"pending_task_candidates": [], "pending_task_update": None}
 
     candidates = [
         TaskCandidate.model_validate(item)
         for item in raw_items
         if isinstance(item, dict)
     ]
-    return {"pending_task_candidates": candidates}
+    decision = state.get("agent_decision")
+    command = decision.command if decision is not None else None
+    pending_update = command.payload if isinstance(command, TasksUpdateCommand) else None
+    return {
+        "pending_task_candidates": candidates,
+        "pending_task_update": pending_update,
+    }
 
 
 async def resolve_pending_task_choice(state: GraphState, harness: Harness) -> GraphState:
@@ -113,14 +125,38 @@ async def resolve_pending_task_choice(state: GraphState, harness: Harness) -> Gr
             ),
         }
 
+    pending_update = state.get("pending_task_update")
+    if pending_update is not None:
+        update_payload = pending_update.model_dump(mode="python", exclude_unset=True)
+        update_payload.pop("query", None)
+        update_payload["task_id"] = selected.id
+        command = TasksUpdateByIdCommand(
+            type="tasks.update_by_id",
+            payload=TaskUpdateByIdPayload.model_validate(update_payload),
+        )
+        update_result = await harness.handle(
+            command,
+            _resolved_context(state, "tasks.update", selected.id),
+        )
+        return {
+            "harness_result": update_result,
+            "pending_task_candidates": [],
+            "pending_task_update": None,
+            "resolved_command": command,
+        }
+
     command = TasksCompleteByIdCommand(
         type="tasks.complete_by_id",
         payload=TaskIdPayload(task_id=selected.id),
     )
-    completion_result = await harness.handle(command, _completion_context(state, selected.id))
+    completion_result = await harness.handle(
+        command,
+        _resolved_context(state, "tasks.complete", selected.id),
+    )
     return {
         "harness_result": completion_result,
         "pending_task_candidates": [],
+        "pending_task_update": None,
         "resolved_command": command,
     }
 
@@ -158,10 +194,10 @@ async def render_response(state: GraphState, response_agent: ResponseAgent) -> G
     }
 
 
-def _completion_context(state: GraphState, task_id: UUID):
+def _resolved_context(state: GraphState, command_type: str, task_id: UUID):
     context = state["context"]
     return context.model_copy(
-        update={"idempotency_key": f"{context.idempotency_key}:tasks.complete:{task_id}"},
+        update={"idempotency_key": f"{context.idempotency_key}:{command_type}:{task_id}"},
     )
 
 
