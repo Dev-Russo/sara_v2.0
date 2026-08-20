@@ -24,8 +24,18 @@ def test_task_create_normalizes_title() -> None:
         payload={"title": "  revisar   documentação  ", "due_date": date(2026, 8, 19)},
     )
 
-    assert command.payload.title == "revisar documentação"
+    assert command.payload.title == "Revisar documentação"
     assert command.payload.priority == 0
+
+
+def test_task_payload_capitalizes_title_and_description() -> None:
+    payload = TaskCreatePayload(
+        title="  comprar feij\u00e3o  ",
+        description="  ler   livro  ",
+    )
+
+    assert payload.title == "Comprar feij\u00e3o"
+    assert payload.description == "Ler livro"
 
 
 def test_task_priority_accepts_only_binary_values() -> None:
@@ -58,8 +68,19 @@ def test_task_update_normalizes_title() -> None:
         title="  revisar   documento final  ",
     )
 
-    assert payload.title == "revisar documento final"
+    assert payload.title == "Revisar documento final"
     assert payload.query == "revisar documento"
+
+
+def test_task_update_capitalizes_title_and_description() -> None:
+    payload = TaskUpdatePayload(
+        query="tarefa 2",
+        title="tarefa 2",
+        description="comprar caf\u00e9",
+    )
+
+    assert payload.title == "Tarefa 2"
+    assert payload.description == "Comprar caf\u00e9"
 
 
 def test_task_update_requires_a_field_and_allows_clearing_nullable_fields() -> None:

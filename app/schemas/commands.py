@@ -19,6 +19,12 @@ TASK_UPDATE_FIELDS = (
 )
 
 
+def normalize_task_text(value: str) -> str:
+    """Normaliza espaços e aplica sentence case ao texto da tarefa."""
+    normalized = " ".join(value.split())
+    return normalized[:1].upper() + normalized[1:] if normalized else normalized
+
+
 class CommandBase(BaseModel):
     command_id: UUID = Field(default_factory=uuid4)
     version: int = Field(default=1, ge=1)
@@ -35,10 +41,15 @@ class TaskCreatePayload(BaseModel):
     @field_validator("title")
     @classmethod
     def title_must_not_be_blank(cls, value: str) -> str:
-        normalized = " ".join(value.split())
+        normalized = normalize_task_text(value)
         if not normalized:
             raise ValueError("task title must not be blank")
         return normalized
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        return normalize_task_text(value) if value is not None else None
 
     @model_validator(mode="after")
     def end_must_follow_start(self) -> "TaskCreatePayload":
@@ -84,10 +95,15 @@ class TaskUpdateChanges(BaseModel):
     def title_must_not_be_blank(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        normalized = " ".join(value.split())
+        normalized = normalize_task_text(value)
         if not normalized:
             raise ValueError("task title must not be blank")
         return normalized
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        return normalize_task_text(value) if value is not None else None
 
     @model_validator(mode="after")
     def must_contain_change(self) -> "TaskUpdateChanges":
