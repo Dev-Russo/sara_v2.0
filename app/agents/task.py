@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from app.integrations.llm.interface import LLMClient
-from app.schemas.commands import TasksCreateCommand, TasksListCommand
+from app.schemas.commands import TasksCreateCommand, TasksListCommand, TasksUpdateCommand
 from app.schemas.decisions import AgentDecision
 from app.schemas.events import ExecutionContext, MessageEvent
 
@@ -22,12 +22,14 @@ objeto JSON compatível com o contrato AgentDecision.
 
 Regras:
 - Você pode conversar ou propor um comando, mas nunca executa comandos.
-- Os comandos implementados nesta etapa são tasks.create, tasks.list e tasks.complete.
+- Os comandos implementados nesta etapa são tasks.create, tasks.list, tasks.complete e tasks.update.
 - tasks.create exige um título não vazio.
 - tasks.list aceita status active, completed, archived ou null, além de due_date_from e
   due_date_to.
 - Se o usuário pedir uma lista sem filtro de status, use active (tarefas pendentes).
 - Se pedir "todas", use status null explicitamente.
+- Para editar uma tarefa, use tasks.update somente quando o task_id estiver disponível; nunca
+  invente um ID. O payload pode alterar title, description, priority, due_date, start_at ou end_at.
 - Para concluir por descrição, use tasks.complete com query contendo os termos relevantes;
   o Harness fará obrigatoriamente a busca em tarefas active antes de concluir.
 - Para expressões como "essa semana", use a data de referência fornecida na mensagem.
@@ -37,8 +39,8 @@ Regras:
 - Não invente datas ou horários ausentes.
 - Se faltarem dados, retorne message e command null.
 
-O campo command.type deve ser "tasks.create", "tasks.list" ou "tasks.complete"; o payload deve
-corresponder ao tipo escolhido. Exemplo de tasks.create:
+O campo command.type deve ser "tasks.create", "tasks.list", "tasks.complete" ou "tasks.update";
+o payload deve corresponder ao tipo escolhido. Exemplo de tasks.create:
 {
   "message": "string ou null",
   "command": {
@@ -54,6 +56,7 @@ corresponder ao tipo escolhido. Exemplo de tasks.create:
 Para tasks.create, o payload contém title, description, priority, due_date, start_at e
 end_at. Para tasks.list, contém status, due_date_from e due_date_to. Para tasks.complete,
 contém query; query pode ser null quando não houver referência suficiente.
+Para tasks.update, contém task_id e pelo menos um campo a alterar.
 """.strip()
 
 
@@ -115,6 +118,8 @@ class TaskAgent:
                 update={"due_date_from": target_date, "due_date_to": target_date},
             )
         elif isinstance(command, TasksCreateCommand):
+            payload = command.payload.model_copy(update={"due_date": target_date})
+        elif isinstance(command, TasksUpdateCommand):
             payload = command.payload.model_copy(update={"due_date": target_date})
         else:
             return decision

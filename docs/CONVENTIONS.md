@@ -81,6 +81,9 @@ Não criar uma abstração genérica sem variação real. Quando houver mais de 
 - Schemas de entrada e saída são explícitos.
 - `dict[str, Any]` não substitui um schema quando o dado atravessa módulos.
 - Campos opcionais têm semântica documentada; `null` não significa automaticamente “não alterar”.
+- Em `TaskUpdatePayload`, campo omitido significa “não alterar” e `null` explícito limpa
+  campos anuláveis (`description`, `due_date`, `start_at` e `end_at`); título não pode
+  ser limpo.
 - Mensagens para o usuário não são usadas como fonte de verdade de sucesso.
 - `HarnessResult.effect` é a fonte de verdade para a resposta pós-execução.
 - Versões de comando devem ser consideradas quando o payload persistir.

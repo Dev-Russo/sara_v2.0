@@ -3,7 +3,12 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.schemas.commands import TaskCreatePayload, TaskListPayload, TaskSearchPayload
+from app.schemas.commands import (
+    TaskCreatePayload,
+    TaskListPayload,
+    TaskSearchPayload,
+    TaskUpdatePayload,
+)
 from app.schemas.tasks import TaskListResult, TaskView
 
 
@@ -16,6 +21,13 @@ class TaskRepository(Protocol):
 
     async def complete_for_user(self, user_id: UUID, task_id: UUID) -> TaskView | None:
         """Conclui uma tarefa ativa dentro do escopo do usuÃ¡rio."""
+
+    async def update_for_user(
+        self,
+        user_id: UUID,
+        payload: TaskUpdatePayload,
+    ) -> TaskView | None:
+        """Atualiza uma tarefa pertencente ao usuÃƒÂ¡rio dentro da transaÃ§Ã£o."""
 
     async def search_for_user(
         self,

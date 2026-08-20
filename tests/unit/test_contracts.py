@@ -7,7 +7,12 @@ from pydantic import ValidationError
 from app.harness.confirmation import normalize_confirmation
 from app.harness.policies import requires_confirmation
 from app.scheduler.idempotency import scheduled_idempotency_key
-from app.schemas.commands import TaskCreatePayload, TasksCreateCommand, TasksListCommand
+from app.schemas.commands import (
+    TaskCreatePayload,
+    TasksCreateCommand,
+    TasksListCommand,
+    TaskUpdatePayload,
+)
 
 
 def test_task_create_normalizes_title() -> None:
@@ -42,6 +47,28 @@ def test_task_priority_accepts_only_binary_values() -> None:
 def test_blank_task_title_is_rejected() -> None:
     with pytest.raises(ValidationError):
         TaskCreatePayload(title="   ")
+
+
+def test_task_update_normalizes_title() -> None:
+    payload = TaskUpdatePayload(
+        task_id=uuid4(),
+        title="  revisar   documento final  ",
+    )
+
+    assert payload.title == "revisar documento final"
+
+
+def test_task_update_requires_a_field_and_allows_clearing_nullable_fields() -> None:
+    clear_description = TaskUpdatePayload(task_id=uuid4(), description=None)
+
+    assert "description" in clear_description.model_fields_set
+    assert clear_description.description is None
+
+    with pytest.raises(ValidationError):
+        TaskUpdatePayload(task_id=uuid4())
+
+    with pytest.raises(ValidationError):
+        TaskUpdatePayload(task_id=uuid4(), title=None)
 
 
 def test_task_list_defaults_to_active_and_allows_explicit_all() -> None:

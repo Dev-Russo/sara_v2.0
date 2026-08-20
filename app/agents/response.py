@@ -46,6 +46,66 @@ class DeterministicResponseAgent:
                 message=f"Encontrei {total} tarefas: {visible_titles}{suffix}.",
             )
 
+        if result.command_type == "tasks.update":
+            if result.status == "failed" and result.error_code == "TASK_NOT_FOUND":
+                return ResponseDecision(message="Não encontrei essa tarefa.")
+            if result.status == "failed" and result.error_code == "INVALID_TASK_TIME_RANGE":
+                return ResponseDecision(
+                    message=(
+                        "O hor" + chr(0xE1) + "rio final n" + chr(0xE3)
+                        + "o pode ser anterior ao inicial."
+                    ),
+                )
+
+            if result.status in {"executed", "duplicate"}:
+                kind = effect.get("kind")
+                if kind == "task_unchanged":
+                    title = effect.get("title")
+                    task_label = f": {title}" if isinstance(title, str) else ""
+                    return ResponseDecision(
+                        message=f"A tarefa j\u00e1 estava com esses dados{task_label}."
+                    )
+                if kind != "task_updated":
+                    return ResponseDecision(
+                        message=(
+                            "N" + chr(0xE3) + "o consegui confirmar essa atualiza"
+                            + chr(0xE7) + chr(0xE3) + "o."
+                        ),
+                    )
+                changed_fields = effect.get("changed_fields", [])
+                labels = {
+                    "title": "t" + chr(0xED) + "tulo",
+                    "description": "descri" + chr(0xE7) + chr(0xE3) + "o",
+                    "priority": "prioridade",
+                    "due_date": "data",
+                    "start_at": "hor" + chr(0xE1) + "rio inicial",
+                    "end_at": "hor" + chr(0xE1) + "rio final",
+                }
+                visible_fields = (
+                    [
+                        labels[field]
+                        for field in changed_fields
+                        if isinstance(field, str) and field in labels
+                    ]
+                    if isinstance(changed_fields, list)
+                    else []
+                )
+                title = effect.get("title")
+                task_label = f": {title}" if isinstance(title, str) else ""
+                prefix = (
+                    "A tarefa já estava atualizada"
+                    if result.status == "duplicate"
+                    else "Tarefa atualizada"
+                )
+                if not visible_fields:
+                    return ResponseDecision(message=f"{prefix}{task_label}.")
+                return ResponseDecision(
+                    message=(
+                        f"{prefix}{task_label}. "
+                        f"Campos alterados: {_join_labels(visible_fields)}."
+                    ),
+                )
+
         title = effect.get("title")
         if result.command_type == "tasks.create" and isinstance(title, str):
             if result.status == "duplicate":
@@ -94,3 +154,11 @@ class DeterministicResponseAgent:
         if result.status == "failed":
             return ResponseDecision(message="A execuÃ§Ã£o da tarefa falhou.")
         return ResponseDecision(message="Comando executado com sucesso.")
+
+
+def _join_labels(labels: list[str]) -> str:
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} e {labels[1]}"
+    return f"{', '.join(labels[:-1])} e {labels[-1]}"

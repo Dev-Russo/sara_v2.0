@@ -12,6 +12,14 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 TaskStatus = Literal["active", "completed", "archived"]
 TaskPriority = Literal[0, 1]
+TASK_UPDATE_FIELDS = (
+    "title",
+    "description",
+    "priority",
+    "due_date",
+    "start_at",
+    "end_at",
+)
 
 
 class CommandBase(BaseModel):
@@ -76,18 +84,22 @@ class TaskUpdatePayload(BaseModel):
     start_at: datetime | None = None
     end_at: datetime | None = None
 
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("task title must not be blank")
+        return normalized
+
     @model_validator(mode="after")
     def must_contain_change(self) -> "TaskUpdatePayload":
-        changes = (
-            self.title,
-            self.description,
-            self.priority,
-            self.due_date,
-            self.start_at,
-            self.end_at,
-        )
-        if all(value is None for value in changes):
+        if not self.model_fields_set.intersection(TASK_UPDATE_FIELDS):
             raise ValueError("task update must contain at least one change")
+        if "title" in self.model_fields_set and self.title is None:
+            raise ValueError("task title cannot be cleared")
         if self.start_at and self.end_at and self.end_at < self.start_at:
             raise ValueError("end_at cannot precede start_at")
         return self

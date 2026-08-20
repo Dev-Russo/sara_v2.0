@@ -7,9 +7,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.errors import InvalidTaskTimeRangeError
 from app.models.task import Task
 from app.repositories.interfaces import TaskRepository
-from app.schemas.commands import TaskCreatePayload, TaskListPayload, TaskSearchPayload
+from app.schemas.commands import (
+    TASK_UPDATE_FIELDS,
+    TaskCreatePayload,
+    TaskListPayload,
+    TaskSearchPayload,
+    TaskUpdatePayload,
+)
 from app.schemas.tasks import TaskListResult, TaskView
 
 
@@ -49,6 +56,38 @@ class SqlAlchemyTaskRepository(TaskRepository):
             return None
         task.status = "completed"
         task.completed_at = datetime.now(UTC)
+        await self._session.flush()
+        return TaskView.model_validate(task)
+
+    async def update_for_user(
+        self,
+        user_id: UUID,
+        payload: TaskUpdatePayload,
+    ) -> TaskView | None:
+        task = await self._session.scalar(
+            select(Task).where(Task.id == payload.task_id, Task.user_id == user_id),
+        )
+        if task is None:
+            return None
+
+        update_values = {
+            field: getattr(payload, field)
+            for field in TASK_UPDATE_FIELDS
+            if field in payload.model_fields_set
+        }
+        start_at = update_values.get("start_at", task.start_at)
+        end_at = update_values.get("end_at", task.end_at)
+        if (
+            start_at is not None
+            and end_at is not None
+            and _as_utc(end_at) < _as_utc(start_at)
+        ):
+            raise InvalidTaskTimeRangeError("end_at cannot precede start_at")
+
+        for field in TASK_UPDATE_FIELDS:
+            if field in update_values:
+                setattr(task, field, update_values[field])
+
         await self._session.flush()
         return TaskView.model_validate(task)
 
@@ -113,3 +152,9 @@ def _normalize_search_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     without_accents = normalized.encode("ascii", "ignore").decode("ascii")
     return " ".join(without_accents.split())
+
+
+def _as_utc(value):
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

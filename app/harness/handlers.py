@@ -9,6 +9,7 @@ from app.schemas.commands import (
     TasksCompleteCommand,
     TasksCreateCommand,
     TasksListCommand,
+    TasksUpdateCommand,
 )
 from app.schemas.events import ExecutionContext
 from app.schemas.results import HarnessResult
@@ -51,6 +52,28 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
                 "total": outcome.total,
                 "filters": command.payload.model_dump(mode="json"),
             },
+        )
+
+    async def update_task(command: Command, context: ExecutionContext) -> HarnessResult:
+        if not isinstance(command, TasksUpdateCommand):
+            raise TypeError("tasks.update handler received an incompatible command")
+
+        outcome = await task_service.update_task(context, command.payload)
+        if outcome.error_code is not None:
+            return HarnessResult(
+                status="failed",
+                command_id=command.command_id,
+                command_type=command.type,
+                error_code=outcome.error_code,
+                effect=outcome.effect,
+            )
+        if outcome.task is None:
+            raise RuntimeError("successful task update has no task result")
+        return HarnessResult(
+            status="duplicate" if outcome.duplicate else "executed",
+            command_id=command.command_id,
+            command_type=command.type,
+            effect=outcome.effect,
         )
 
     async def complete_task_by_query(
@@ -146,6 +169,8 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
     registry.register("tasks.create", handler)
     list_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = list_tasks
     registry.register("tasks.list", list_handler)
+    update_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = update_task
+    registry.register("tasks.update", update_handler)
     complete_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
         complete_task_by_query
     )

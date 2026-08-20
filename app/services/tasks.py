@@ -6,18 +6,39 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.errors import InvalidTaskTimeRangeError
 from app.models.command_execution import CommandExecution
 from app.repositories.command_execution_repository import SqlAlchemyCommandExecutionRepository
 from app.repositories.task_repository import SqlAlchemyTaskRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
-from app.schemas.commands import TaskCreatePayload, TaskListPayload, TaskSearchPayload
+from app.schemas.commands import (
+    TASK_UPDATE_FIELDS,
+    TaskCreatePayload,
+    TaskListPayload,
+    TaskSearchPayload,
+    TaskUpdatePayload,
+)
 from app.schemas.events import ExecutionContext
 from app.schemas.tasks import (
     TaskCandidate,
     TaskCompletionResult,
     TaskCreationResult,
     TaskListResult,
+    TaskUpdateResult,
 )
+
+
+def _same_task_value(current: object, requested: object) -> bool:
+    if isinstance(current, datetime) and isinstance(requested, datetime):
+        current = _as_utc(current)
+        requested = _as_utc(requested)
+    return current == requested
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class TaskService:
@@ -106,6 +127,107 @@ class TaskService:
                 active_payload = payload.model_copy(update={"status": "active"})
                 return await task_repository.search_for_user(context.user_id, active_payload)
 
+    async def update_task(
+        self,
+        context: ExecutionContext,
+        payload: TaskUpdatePayload,
+    ) -> TaskUpdateResult:
+        async with self._session_factory() as session:
+            async with session.begin():
+                user_repository = SqlAlchemyUserRepository(session)
+                task_repository = SqlAlchemyTaskRepository(session)
+                execution_repository = SqlAlchemyCommandExecutionRepository(session)
+
+                await user_repository.ensure_exists(context.user_id)
+                existing = await execution_repository.get_by_idempotency_key(
+                    context.idempotency_key,
+                )
+                if existing is not None:
+                    # Reentregas devem reutilizar o efeito persistido e nunca repetir a mutação.
+                    return await self._duplicate_update_result(
+                        existing,
+                        task_repository,
+                        context.user_id,
+                    )
+
+                execution = await execution_repository.create_received(
+                    context,
+                    command_type="tasks.update",
+                    command_version=1,
+                )
+                existing_task = await task_repository.get_for_user(
+                    context.user_id,
+                    payload.task_id,
+                )
+                if existing_task is None:
+                    effect = {
+                        "kind": "task_update_failed",
+                        "task_id": str(payload.task_id),
+                        "error_code": "TASK_NOT_FOUND",
+                    }
+                    execution.status = "failed"
+                    execution.effect_payload = effect
+                    execution.result_summary = str(payload.task_id)
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskUpdateResult(error_code="TASK_NOT_FOUND", effect=effect)
+
+                changed_fields = [
+                    field
+                    for field in TASK_UPDATE_FIELDS
+                    if field in payload.model_fields_set
+                    and not _same_task_value(
+                        getattr(existing_task, field),
+                        getattr(payload, field),
+                    )
+                ]
+                try:
+                    task = (
+                        await task_repository.update_for_user(context.user_id, payload)
+                        if changed_fields
+                        else existing_task
+                    )
+                except InvalidTaskTimeRangeError:
+                    effect = {
+                        "kind": "task_update_failed",
+                        "task_id": str(payload.task_id),
+                        "error_code": "INVALID_TASK_TIME_RANGE",
+                    }
+                    execution.status = "failed"
+                    execution.effect_payload = effect
+                    execution.result_summary = str(payload.task_id)
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskUpdateResult(
+                        error_code="INVALID_TASK_TIME_RANGE",
+                        effect=effect,
+                    )
+                if task is None:
+                    effect = {
+                        "kind": "task_update_failed",
+                        "task_id": str(payload.task_id),
+                        "error_code": "TASK_NOT_FOUND",
+                    }
+                    execution.status = "failed"
+                    execution.effect_payload = effect
+                    execution.result_summary = str(payload.task_id)
+                    execution.completed_at = datetime.now(UTC)
+                    return TaskUpdateResult(error_code="TASK_NOT_FOUND", effect=effect)
+
+                effect = {
+                    "kind": "task_updated" if changed_fields else "task_unchanged",
+                    "task_id": str(task.id),
+                    "title": task.title,
+                    "changed_fields": changed_fields,
+                }
+                execution.status = "executed"
+                execution.effect_payload = effect
+                execution.result_summary = task.title
+                execution.completed_at = datetime.now(UTC)
+                return TaskUpdateResult(
+                    task=task,
+                    changed_fields=changed_fields,
+                    effect=effect,
+                )
+
     async def complete_task_by_query(
         self,
         context: ExecutionContext,
@@ -188,7 +310,7 @@ class TaskService:
                         query=query,
                     )
 
-                return await self._complete_task_by_id(
+                return await self._apply_task_completion(
                     context=context,
                     task_repository=task_repository,
                     execution=execution,
@@ -228,14 +350,14 @@ class TaskService:
                     command_type="tasks.complete_by_id",
                     command_version=1,
                 )
-                return await self._complete_task_by_id(
+                return await self._apply_task_completion(
                     context=context,
                     task_repository=task_repository,
                     execution=execution,
                     task_id=task_id,
                 )
 
-    async def _complete_task_by_id(
+    async def _apply_task_completion(
         self,
         *,
         context: ExecutionContext,
@@ -285,6 +407,38 @@ class TaskService:
         if task is None:
             raise RuntimeError("idempotent task result is no longer available")
         return TaskCreationResult(task=task, duplicate=True)
+
+    async def _duplicate_update_result(
+        self,
+        execution: CommandExecution,
+        task_repository: SqlAlchemyTaskRepository,
+        user_id: UUID,
+    ) -> TaskUpdateResult:
+        effect = execution.effect_payload or {}
+        if execution.status == "failed":
+            return TaskUpdateResult(
+                error_code=str(effect.get("error_code", "TASK_NOT_FOUND")),
+                effect=effect,
+            )
+        if execution.status != "executed" or not execution.effect_payload:
+            raise RuntimeError("idempotent task update is not in a completed state")
+
+        task_id = UUID(str(execution.effect_payload["task_id"]))
+        task = await task_repository.get_for_user(user_id, task_id)
+        if task is None:
+            raise RuntimeError("idempotent task update result is no longer available")
+        raw_changed_fields = effect.get("changed_fields", [])
+        changed_fields = (
+            [field for field in raw_changed_fields if isinstance(field, str)]
+            if isinstance(raw_changed_fields, list)
+            else []
+        )
+        return TaskUpdateResult(
+            task=task,
+            changed_fields=changed_fields,
+            duplicate=True,
+            effect=effect,
+        )
 
     async def _duplicate_completion_result(
         self,
