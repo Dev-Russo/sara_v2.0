@@ -148,6 +148,18 @@ class TaskCompletePayload(BaseModel):
         return normalized or None
 
 
+class TaskDeletePayload(BaseModel):
+    query: str = Field(min_length=1)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_blank(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("task delete query must not be blank")
+        return normalized
+
+
 class TaskIdsPayload(BaseModel):
     task_ids: list[UUID] = Field(min_length=1)
 
@@ -220,6 +232,11 @@ class TasksRescheduleCommand(CommandBase):
 
 class TasksDeleteCommand(CommandBase):
     type: Literal["tasks.delete"]
+    payload: TaskDeletePayload
+
+
+class TasksDeleteByIdCommand(CommandBase):
+    type: Literal["tasks.delete_by_id"]
     payload: TaskIdPayload
 
 
@@ -273,6 +290,7 @@ Command = Annotated[
         | TasksUpdateByIdCommand
         | TasksRescheduleCommand
         | TasksDeleteCommand
+        | TasksDeleteByIdCommand
         | TasksCreateManyCommand
         | TasksCompleteManyCommand
         | TasksUpdateManyCommand

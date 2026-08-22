@@ -15,4 +15,4 @@ class ConfirmationView(BaseModel):
     summary: str
     status: Literal["pending", "confirmed", "cancelled", "expired", "consumed"]
     expires_at: datetime
-
+    resolved_at: datetime | None = None

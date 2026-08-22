@@ -34,4 +34,4 @@ class ConfirmationEvent(BaseModel):
     user_id: UUID
     decision: Literal["confirm", "cancel"]
     received_at: datetime
-    source: Literal["telegram", "test"]
+    source: Literal["telegram", "cli", "test"]

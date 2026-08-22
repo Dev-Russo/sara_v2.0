@@ -77,6 +77,9 @@ Não criar uma abstração genérica sem variação real. Quando houver mais de 
 
 ## Schemas e contratos
 
+- `tasks.delete` recebe uma referência textual de tarefa active e sempre cria uma confirmação persistida.
+- `tasks.delete_by_id` é interno: o Graph o produz após a seleção e ele também permanece sujeito à confirmação.
+
 - Comandos são discriminados por `type` e payload validado.
 - Schemas de entrada e saída são explícitos.
 - `dict[str, Any]` não substitui um schema quando o dado atravessa módulos.

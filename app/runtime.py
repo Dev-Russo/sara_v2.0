@@ -6,7 +6,7 @@ from app.agents.task import TaskAgent
 from app.config import Settings
 from app.db.session import create_session_factory
 from app.graph.builder import build_graph
-from app.harness.handlers import register_task_handlers
+from app.harness.handlers import build_task_confirmation_resolver, register_task_handlers
 from app.harness.registry import CommandRegistry
 from app.harness.service import Harness
 from app.integrations.llm.anthropic_adapter import AnthropicAdapter
@@ -23,7 +23,10 @@ def build_runtime_graph(settings: Settings) -> CompiledStateGraph | None:
     task_service = TaskService(session_factory, timezone=settings.timezone)
     registry = CommandRegistry()
     register_task_handlers(registry, task_service)
-    harness = Harness(registry)
+    harness = Harness(
+        registry,
+        confirmation_resolver=build_task_confirmation_resolver(task_service),
+    )
     task_agent = TaskAgent(
         AnthropicAdapter(
             api_key=settings.llm_api_key,

@@ -49,6 +49,19 @@ class TaskCompletionResult(BaseModel):
     query: str | None = None
 
 
+class TaskDeletionResult(BaseModel):
+    command_id: UUID | None = None
+    command_type: str | None = None
+    task: TaskView | None = None
+    duplicate: bool = False
+    awaiting_confirmation: bool = False
+    confirmation_id: UUID | None = None
+    error_code: str | None = None
+    candidates: list[TaskCandidate] = Field(default_factory=list)
+    query: str | None = None
+    effect: dict[str, object] | None = None
+
+
 class TaskUpdateResult(BaseModel):
     task: TaskView | None = None
     changed_fields: list[str] = Field(default_factory=list)

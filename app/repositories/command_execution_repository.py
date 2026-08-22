@@ -1,6 +1,8 @@
 """Persistência da chave de idempotência de comandos."""
 
 
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +17,11 @@ class SqlAlchemyCommandExecutionRepository:
     async def get_by_idempotency_key(self, key: str) -> CommandExecution | None:
         return await self._session.scalar(
             select(CommandExecution).where(CommandExecution.idempotency_key == key),
+        )
+
+    async def get_by_id(self, execution_id: UUID) -> CommandExecution | None:
+        return await self._session.scalar(
+            select(CommandExecution).where(CommandExecution.id == execution_id),
         )
 
     async def create_received(

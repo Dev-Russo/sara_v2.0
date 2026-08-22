@@ -9,7 +9,9 @@ from app.graph.nodes import (
     execute_command,
     load_session,
     normalize_decision,
+    pending_confirmation_prompt,
     render_response,
+    resolve_confirmation,
     resolve_pending_task_choice,
     route_decision,
     route_flow,
@@ -48,12 +50,20 @@ def build_graph(
     async def pending_choice_node(state: GraphState) -> GraphState:
         return await resolve_pending_task_choice(state, harness)
 
+    async def confirmation_node(state: GraphState) -> GraphState:
+        return await resolve_confirmation(state, harness)
+
+    async def pending_confirmation_node(state: GraphState) -> GraphState:
+        return await pending_confirmation_prompt(state)
+
     graph.add_node("load_session", load_session)
     graph.add_node("task_agent", task_agent_node)
     graph.add_node("normalize_decision", normalize_decision)
     graph.add_node("execute_command", harness_node)
     graph.add_node("store_task_reference_candidates", selection_storage_node)
     graph.add_node("resolve_pending_task_choice", pending_choice_node)
+    graph.add_node("resolve_confirmation", confirmation_node)
+    graph.add_node("pending_confirmation", pending_confirmation_node)
     graph.add_node("unsupported_flow", unsupported_flow)
     graph.add_node("render_response", response_node)
 
@@ -62,6 +72,8 @@ def build_graph(
         "load_session",
         route_flow,
         {
+            "confirmation": "resolve_confirmation",
+            "pending_confirmation": "pending_confirmation",
             "task": "task_agent",
             "pending_choice": "resolve_pending_task_choice",
             "unsupported": "unsupported_flow",
@@ -83,6 +95,8 @@ def build_graph(
     )
     graph.add_edge("store_task_reference_candidates", "render_response")
     graph.add_edge("resolve_pending_task_choice", "render_response")
+    graph.add_edge("resolve_confirmation", "render_response")
+    graph.add_edge("pending_confirmation", "render_response")
     graph.add_edge("unsupported_flow", "render_response")
     graph.add_edge("render_response", END)
 

@@ -84,3 +84,51 @@ async def test_response_agent_uses_safe_fallback_for_incomplete_task_update_effe
     decision = await DeterministicResponseAgent().respond(result, make_context())
 
     assert decision.message == "N\u00e3o consegui confirmar essa atualiza\u00e7\u00e3o."
+
+
+@pytest.mark.asyncio
+async def test_response_agent_asks_confirmation_before_task_deletion() -> None:
+    result = HarnessResult(
+        status="awaiting_confirmation",
+        command_id=uuid4(),
+        command_type="tasks.delete",
+        confirmation_id=uuid4(),
+        effect={"kind": "task_delete_pending", "title": "Apagar relatório"},
+    )
+
+    decision = await DeterministicResponseAgent().respond(result, make_context())
+
+    assert decision.message == (
+        "Confirma a exclusão da tarefa \"Apagar relatório\"? "
+        "Essa ação não poderá ser desfeita."
+    )
+
+
+@pytest.mark.asyncio
+async def test_response_agent_explains_expired_task_deletion_confirmation() -> None:
+    result = HarnessResult(
+        status="failed",
+        command_id=uuid4(),
+        command_type="tasks.delete",
+        error_code="CONFIRMATION_EXPIRED",
+    )
+
+    decision = await DeterministicResponseAgent().respond(result, make_context())
+
+    assert decision.message == (
+        "A confirma\u00e7\u00e3o expirou. Posso preparar a exclus\u00e3o novamente."
+    )
+
+
+@pytest.mark.asyncio
+async def test_response_agent_confirms_task_deletion_only_after_execution() -> None:
+    result = HarnessResult(
+        status="executed",
+        command_id=uuid4(),
+        command_type="tasks.delete",
+        effect={"kind": "task_deleted", "title": "Apagar relatório"},
+    )
+
+    decision = await DeterministicResponseAgent().respond(result, make_context())
+
+    assert decision.message == "Tarefa excluída: Apagar relatório."

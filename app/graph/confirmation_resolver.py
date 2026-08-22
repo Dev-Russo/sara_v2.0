@@ -1,18 +1,5 @@
-"""Retomada determinística de uma confirmação persistida."""
+"""Compatibilidade para a seam de retomada de confirmações."""
 
-from typing import Protocol
-from uuid import UUID
+from app.harness.service import ConfirmationResolver
 
-from app.schemas.events import ExecutionContext
-from app.schemas.results import HarnessResult
-
-
-class ConfirmationResolver(Protocol):
-    async def resolve(
-        self,
-        confirmation_id: UUID,
-        context: ExecutionContext,
-        decision: str,
-    ) -> HarnessResult:
-        """Resolve somente o snapshot persistido; não reclassifica a mensagem."""
-
+__all__ = ["ConfirmationResolver"]

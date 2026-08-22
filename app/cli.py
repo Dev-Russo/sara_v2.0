@@ -15,9 +15,10 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.config import Settings, get_settings
 from app.graph.state import GraphState
+from app.harness.confirmation import normalize_confirmation
 from app.runtime import build_runtime_graph
-from app.schemas.commands import TaskUpdatePayload
-from app.schemas.events import ExecutionContext, MessageEvent
+from app.schemas.commands import TaskDeletePayload, TaskUpdatePayload
+from app.schemas.events import ConfirmationEvent, ExecutionContext, MessageEvent
 from app.schemas.tasks import TaskCandidate
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ class CliSession:
     active_flow: str | None = None
     pending_task_candidates: list[TaskCandidate] = field(default_factory=list)
     pending_task_update: TaskUpdatePayload | None = None
+    pending_task_delete: TaskDeletePayload | None = None
+    pending_confirmation_id: UUID | None = None
     debug: bool = False
     trace_sink: Callable[[str], None] = print
 
@@ -45,13 +48,27 @@ class CliSession:
             return "Digite uma mensagem para continuar."
 
         turn_id = uuid4()
-        event = MessageEvent(
-            event_id=f"cli:{turn_id}",
-            user_id=self.user_id,
-            text=normalized_text,
-            received_at=datetime.now(UTC),
-            source="cli",
+        confirmation_decision = (
+            normalize_confirmation(normalized_text)
+            if self.pending_confirmation_id is not None
+            else None
         )
+        if confirmation_decision is not None:
+            event = ConfirmationEvent(
+                confirmation_id=self.pending_confirmation_id,
+                user_id=self.user_id,
+                decision=confirmation_decision,
+                received_at=datetime.now(UTC),
+                source="cli",
+            )
+        else:
+            event = MessageEvent(
+                event_id=f"cli:{turn_id}",
+                user_id=self.user_id,
+                text=normalized_text,
+                received_at=datetime.now(UTC),
+                source="cli",
+            )
         context = ExecutionContext(
             user_id=self.user_id,
             graph_thread_id=self.graph_thread_id,
@@ -66,6 +83,10 @@ class CliSession:
             state["pending_task_candidates"] = self.pending_task_candidates
         if self.pending_task_update is not None:
             state["pending_task_update"] = self.pending_task_update
+        if self.pending_task_delete is not None:
+            state["pending_task_delete"] = self.pending_task_delete
+        if self.pending_confirmation_id is not None:
+            state["pending_confirmation_id"] = self.pending_confirmation_id
 
         result = await self.graph.ainvoke(state)
         self.active_flow = result.get("active_flow")
@@ -76,6 +97,14 @@ class CliSession:
         self.pending_task_update = result.get(
             "pending_task_update",
             self.pending_task_update,
+        )
+        self.pending_task_delete = result.get(
+            "pending_task_delete",
+            self.pending_task_delete,
+        )
+        self.pending_confirmation_id = result.get(
+            "pending_confirmation_id",
+            self.pending_confirmation_id,
         )
         if self.debug:
             self._trace_model("agent_decision", result.get("agent_decision"))

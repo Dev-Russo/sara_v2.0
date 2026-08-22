@@ -7,6 +7,7 @@ from app.agents.task import TaskAgent
 from app.schemas.commands import (
     TasksCompleteCommand,
     TasksCreateCommand,
+    TasksDeleteCommand,
     TasksListCommand,
     TasksUpdateCommand,
 )
@@ -144,3 +145,18 @@ async def test_task_agent_uses_update_intent_without_schedule_fields() -> None:
     assert decision.command.payload.title == "Estudar contratos"
     assert decision.command.payload.priority == 1
     assert "due_date" not in decision.command.payload.model_fields_set
+
+
+@pytest.mark.asyncio
+async def test_task_agent_uses_delete_intent_with_textual_reference() -> None:
+    llm = FakeLLMClient(
+        '{"message":null,"command":{"type":"tasks.delete",'
+        '"payload":{"query":"revisar contrato"}},'
+        '"transition":null,"metadata":{}}',
+    )
+    event = make_event("exclua revisar contrato")
+
+    decision = await TaskAgent(llm).decide(event, make_context(event.user_id))
+
+    assert isinstance(decision.command, TasksDeleteCommand)
+    assert decision.command.payload.query == "revisar contrato"

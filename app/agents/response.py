@@ -122,6 +122,65 @@ class DeterministicResponseAgent:
             if result.status == "executed":
                 return ResponseDecision(message=f"Tarefa criada: {title}.")
 
+        if result.command_type in {"tasks.delete", "tasks.delete_by_id"}:
+            if result.status == "failed" and result.error_code == "CONFIRMATION_EXPIRED":
+                return ResponseDecision(
+                    message=(
+                        "A confirma\u00e7\u00e3o expirou. "
+                        "Posso preparar a exclus\u00e3o novamente."
+                    ),
+                )
+            if result.status == "failed" and result.error_code == "CONFIRMATION_NOT_FOUND":
+                return ResponseDecision(
+                    message="Essa confirma\u00e7\u00e3o n\u00e3o est\u00e1 mais dispon\u00edvel.",
+                )
+            if result.status == "failed" and result.error_code == "CONFIRMATION_ALREADY_RESOLVED":
+                return ResponseDecision(
+                    message="Essa confirma\u00e7\u00e3o j\u00e1 foi resolvida.",
+                )
+            if result.status == "awaiting_selection":
+                items = effect.get("items", [])
+                titles = [
+                    item.get("title")
+                    for item in items
+                    if isinstance(item, dict) and isinstance(item.get("title"), str)
+                ]
+                visible_titles = "; ".join(
+                    f"{index}. {title}" for index, title in enumerate(titles[:5], start=1)
+                )
+                return ResponseDecision(
+                    message=(
+                        f"Encontrei mais de uma tarefa: {visible_titles}. "
+                        "Qual delas deseja excluir?"
+                    ),
+                )
+            if result.status == "awaiting_confirmation":
+                title = effect.get("title")
+                task_label = f' "{title}"' if isinstance(title, str) else ""
+                return ResponseDecision(
+                    message=(
+                        f"Confirma a exclusão da tarefa{task_label}? "
+                        "Essa ação não poderá ser desfeita."
+                    ),
+                )
+            if result.status == "rejected" and result.error_code == "CONFIRMATION_CANCELLED":
+                return ResponseDecision(message="Exclusão cancelada.")
+            if result.status == "failed" and result.error_code in {
+                "TASK_NOT_FOUND",
+                "TASK_REFERENCE_NOT_FOUND",
+            }:
+                return ResponseDecision(message="Não encontrei essa tarefa.")
+            if result.status in {"executed", "duplicate"}:
+                title = effect.get("title")
+                if isinstance(title, str):
+                    prefix = (
+                        "A tarefa já estava excluída"
+                        if result.status == "duplicate"
+                        else "Tarefa excluída"
+                    )
+                    return ResponseDecision(message=f"{prefix}: {title}.")
+                return ResponseDecision(message="Tarefa excluída.")
+
         if result.command_type in {"tasks.complete", "tasks.complete_by_id"}:
             if result.status == "awaiting_selection":
                 items = effect.get("items", [])

@@ -23,7 +23,12 @@ class User(TimestampMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    confirmation_requests: Mapped[list[ConfirmationRequest]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 from app.models.command_execution import CommandExecution  # noqa: E402  # isort: skip
+from app.models.confirmation_request import ConfirmationRequest  # noqa: E402  # isort: skip
 from app.models.task import Task  # noqa: E402  # isort: skip

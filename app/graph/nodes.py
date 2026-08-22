@@ -13,14 +13,23 @@ from app.harness.service import Harness
 from app.schemas.commands import (
     TaskIdPayload,
     TasksCompleteByIdCommand,
+    TasksDeleteByIdCommand,
+    TasksDeleteCommand,
     TasksUpdateByIdCommand,
     TasksUpdateCommand,
     TaskUpdateByIdPayload,
 )
+from app.schemas.events import ConfirmationEvent
 from app.schemas.results import ResponseDecision
 from app.schemas.tasks import TaskCandidate
 
-FlowRoute = Literal["task", "pending_choice", "unsupported"]
+FlowRoute = Literal[
+    "confirmation",
+    "pending_confirmation",
+    "task",
+    "pending_choice",
+    "unsupported",
+]
 DecisionRoute = Literal["execute", "respond"]
 HarnessRoute = Literal["store_selection", "respond"]
 
@@ -33,7 +42,12 @@ async def load_session(state: GraphState) -> GraphState:
     if event.user_id != context.user_id:
         raise ValueError("event and execution context must belong to the same user")
 
+    if isinstance(event, ConfirmationEvent):
+        return {"active_flow": "confirmation"}
+
     active_flow = state.get("active_flow")
+    if state.get("pending_confirmation_id") is not None:
+        return {"active_flow": "confirmation"}
     if active_flow is None:
         active_flow = select_flow(event.text)
     return {"active_flow": active_flow}
@@ -42,6 +56,10 @@ async def load_session(state: GraphState) -> GraphState:
 def route_flow(state: GraphState) -> FlowRoute:
     """Encaminha somente o fluxo de tarefas implementado nesta fatia."""
 
+    if isinstance(state["event"], ConfirmationEvent):
+        return "confirmation"
+    if state.get("pending_confirmation_id") is not None:
+        return "pending_confirmation"
     if state.get("pending_task_candidates"):
         return "pending_choice"
     return "task" if state.get("active_flow") == "task" else "unsupported"
@@ -74,7 +92,37 @@ async def execute_command(state: GraphState, harness: Harness) -> GraphState:
     if decision.command is None:
         return state
     result = await harness.handle(decision.command, state["context"])
-    return {"harness_result": result}
+    return {
+        "harness_result": result,
+        "pending_confirmation_id": result.confirmation_id,
+    }
+
+
+async def resolve_confirmation(state: GraphState, harness: Harness) -> GraphState:
+    event = state["event"]
+    if not isinstance(event, ConfirmationEvent):
+        raise TypeError("confirmation node received an incompatible event")
+
+    result = await harness.resolve_confirmation(
+        event.confirmation_id,
+        state["context"],
+        event.decision,
+    )
+    return {
+        "active_flow": "task",
+        "harness_result": result,
+        "pending_confirmation_id": None,
+    }
+
+
+async def pending_confirmation_prompt(state: GraphState) -> GraphState:
+    """Mantém a confirmação pendente fora do caminho de interpretação do LLM."""
+
+    return {
+        "response_decision": ResponseDecision(
+            message="Responda \"sim\" para confirmar ou \"n\u00e3o\" para cancelar.",
+        ),
+    }
 
 
 def route_harness_result(state: GraphState) -> HarnessRoute:
@@ -83,7 +131,7 @@ def route_harness_result(state: GraphState) -> HarnessRoute:
     result = state.get("harness_result")
     if (
         result is not None
-        and result.command_type in {"tasks.complete", "tasks.update"}
+        and result.command_type in {"tasks.complete", "tasks.update", "tasks.delete"}
         and result.status == "awaiting_selection"
     ):
         return "store_selection"
@@ -97,7 +145,11 @@ async def store_task_reference_candidates(state: GraphState) -> GraphState:
     effect = result.effect or {}
     raw_items = effect.get("items", [])
     if not isinstance(raw_items, list):
-        return {"pending_task_candidates": [], "pending_task_update": None}
+        return {
+            "pending_task_candidates": [],
+            "pending_task_update": None,
+            "pending_task_delete": None,
+        }
 
     candidates = [
         TaskCandidate.model_validate(item)
@@ -107,9 +159,11 @@ async def store_task_reference_candidates(state: GraphState) -> GraphState:
     decision = state.get("agent_decision")
     command = decision.command if decision is not None else None
     pending_update = command.payload if isinstance(command, TasksUpdateCommand) else None
+    pending_delete = command.payload if isinstance(command, TasksDeleteCommand) else None
     return {
         "pending_task_candidates": candidates,
         "pending_task_update": pending_update,
+        "pending_task_delete": pending_delete,
     }
 
 
@@ -119,9 +173,18 @@ async def resolve_pending_task_choice(state: GraphState, harness: Harness) -> Gr
     candidates = state.get("pending_task_candidates", [])
     selected = _select_task_candidate(state["event"].text, candidates)
     if selected is None:
+        pending_delete = state.get("pending_task_delete")
+        pending_update = state.get("pending_task_update")
+        verb = (
+            "excluir"
+            if pending_delete is not None
+            else "atualizar"
+            if pending_update
+            else "concluir"
+        )
         return {
             "response_decision": ResponseDecision(
-                message=_task_choice_message(candidates),
+                message=_task_choice_message(candidates, verb),
             ),
         }
 
@@ -142,6 +205,26 @@ async def resolve_pending_task_choice(state: GraphState, harness: Harness) -> Gr
             "harness_result": update_result,
             "pending_task_candidates": [],
             "pending_task_update": None,
+            "pending_task_delete": None,
+            "resolved_command": command,
+        }
+
+    pending_delete = state.get("pending_task_delete")
+    if pending_delete is not None:
+        command = TasksDeleteByIdCommand(
+            type="tasks.delete_by_id",
+            payload=TaskIdPayload(task_id=selected.id),
+        )
+        delete_result = await harness.handle(
+            command,
+            _resolved_context(state, "tasks.delete", selected.id),
+        )
+        return {
+            "harness_result": delete_result,
+            "pending_confirmation_id": delete_result.confirmation_id,
+            "pending_task_candidates": [],
+            "pending_task_update": None,
+            "pending_task_delete": None,
             "resolved_command": command,
         }
 
@@ -157,6 +240,7 @@ async def resolve_pending_task_choice(state: GraphState, harness: Harness) -> Gr
         "harness_result": completion_result,
         "pending_task_candidates": [],
         "pending_task_update": None,
+        "pending_task_delete": None,
         "resolved_command": command,
     }
 
@@ -231,11 +315,11 @@ def _select_task_candidate(text: str, candidates: list[TaskCandidate]) -> TaskCa
     return matching[0] if len(matching) == 1 else None
 
 
-def _task_choice_message(candidates: list[TaskCandidate]) -> str:
+def _task_choice_message(candidates: list[TaskCandidate], verb: str = "concluir") -> str:
     options = "; ".join(
         f"{index}. {candidate.title}" for index, candidate in enumerate(candidates, start=1)
     )
-    return f"Encontrei mais de uma tarefa: {options}. Qual delas deseja concluir?"
+    return f"Encontrei mais de uma tarefa: {options}. Qual delas deseja {verb}?"
 
 
 def _normalize_task_text(text: str) -> str:

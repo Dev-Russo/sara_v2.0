@@ -139,6 +139,22 @@ class SqlAlchemyTaskRepository(TaskRepository):
         items = [TaskView.model_validate(task) for task in tasks]
         return TaskListResult(items=items, total=len(items))
 
+    async def delete_for_user(self, user_id: UUID, task_id: UUID) -> TaskView | None:
+        task = await self._session.scalar(
+            select(Task).where(
+                Task.id == task_id,
+                Task.user_id == user_id,
+                Task.status == "active",
+            ),
+        )
+        if task is None:
+            return None
+
+        deleted = TaskView.model_validate(task)
+        await self._session.delete(task)
+        await self._session.flush()
+        return deleted
+
 
 def _normalize_search_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())

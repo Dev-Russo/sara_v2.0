@@ -5,11 +5,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.harness.confirmation import normalize_confirmation
+from app.harness.handlers import TaskConfirmationResolver
 from app.harness.policies import requires_confirmation
 from app.scheduler.idempotency import scheduled_idempotency_key
 from app.schemas.commands import (
     TaskCreatePayload,
+    TaskDeletePayload,
     TasksCreateCommand,
+    TasksDeleteByIdCommand,
+    TasksDeleteCommand,
     TasksListCommand,
     TasksUpdateByIdCommand,
     TasksUpdateCommand,
@@ -134,8 +138,32 @@ def test_task_list_defaults_to_active_and_allows_explicit_all() -> None:
 
 def test_confirmation_policy_covers_destructive_operations() -> None:
     assert requires_confirmation("tasks.delete")
+    assert requires_confirmation("tasks.delete_by_id")
     assert requires_confirmation("tasks.update_many")
     assert not requires_confirmation("tasks.update")
+
+
+def test_task_delete_command_uses_textual_reference() -> None:
+    command = TasksDeleteCommand(
+        type="tasks.delete",
+        payload={"query": "  apagar relatório  "},
+    )
+
+    assert isinstance(command.payload, TaskDeletePayload)
+    assert command.payload.query == "apagar relatório"
+
+
+def test_task_delete_by_id_is_an_internal_command() -> None:
+    command = TasksDeleteByIdCommand(
+        type="tasks.delete_by_id",
+        payload={"task_id": uuid4()},
+    )
+
+    assert command.payload.task_id is not None
+
+
+def test_task_confirmation_resolver_exposes_harness_seam() -> None:
+    assert hasattr(TaskConfirmationResolver, "resolve")
 
 
 def test_confirmation_text_is_strictly_normalized() -> None:

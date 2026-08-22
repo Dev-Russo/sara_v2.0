@@ -1,19 +1,24 @@
 """Handlers que adaptam casos de uso para o contrato do Harness."""
 
 from collections.abc import Awaitable, Callable
+from uuid import UUID
 
 from app.harness.registry import CommandRegistry
+from app.harness.service import ConfirmationResolver
 from app.schemas.commands import (
     Command,
     TasksCompleteByIdCommand,
     TasksCompleteCommand,
     TasksCreateCommand,
+    TasksDeleteByIdCommand,
+    TasksDeleteCommand,
     TasksListCommand,
     TasksUpdateByIdCommand,
     TasksUpdateCommand,
 )
 from app.schemas.events import ExecutionContext
 from app.schemas.results import HarnessResult
+from app.schemas.tasks import TaskDeletionResult
 from app.services.tasks import TaskService
 
 
@@ -54,6 +59,28 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
                 "filters": command.payload.model_dump(mode="json"),
             },
         )
+
+    async def delete_task_by_query(command: Command, context: ExecutionContext) -> HarnessResult:
+        if not isinstance(command, TasksDeleteCommand):
+            raise TypeError("tasks.delete handler received an incompatible command")
+
+        outcome = await task_service.request_task_deletion(
+            context,
+            command.payload,
+            command_id=command.command_id,
+        )
+        return _task_deletion_result(command.command_id, command.type, outcome)
+
+    async def delete_task_by_id(command: Command, context: ExecutionContext) -> HarnessResult:
+        if not isinstance(command, TasksDeleteByIdCommand):
+            raise TypeError("tasks.delete_by_id handler received an incompatible command")
+
+        outcome = await task_service.request_task_deletion_by_id(
+            context,
+            command.payload.task_id,
+            command_id=command.command_id,
+        )
+        return _task_deletion_result(command.command_id, command.type, outcome)
 
     async def update_task_by_query(command: Command, context: ExecutionContext) -> HarnessResult:
         if not isinstance(command, TasksUpdateCommand):
@@ -199,6 +226,14 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
     registry.register("tasks.create", handler)
     list_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = list_tasks
     registry.register("tasks.list", list_handler)
+    delete_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
+        delete_task_by_query
+    )
+    registry.register("tasks.delete", delete_handler)
+    delete_by_id_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
+        delete_task_by_id
+    )
+    registry.register("tasks.delete_by_id", delete_by_id_handler)
     update_handler: Callable[[Command, ExecutionContext], Awaitable[HarnessResult]] = (
         update_task_by_query
     )
@@ -215,3 +250,71 @@ def register_task_handlers(registry: CommandRegistry, task_service: TaskService)
         complete_task_by_id
     )
     registry.register("tasks.complete_by_id", complete_by_id_handler)
+
+
+class TaskConfirmationResolver:
+    """Adapta a resolução do caso de uso para a seam do Harness."""
+
+    def __init__(self, task_service: TaskService) -> None:
+        self._task_service = task_service
+
+    async def resolve(
+        self,
+        confirmation_id: UUID,
+        context: ExecutionContext,
+        decision: str,
+    ) -> HarnessResult:
+        outcome = await self._task_service.resolve_task_deletion_confirmation(
+            confirmation_id,
+            context,
+            decision,
+        )
+        return _task_deletion_result(
+            outcome.command_id or confirmation_id,
+            outcome.command_type or "tasks.delete",
+            outcome,
+        )
+
+
+def build_task_confirmation_resolver(task_service: TaskService) -> ConfirmationResolver:
+    return TaskConfirmationResolver(task_service)
+
+
+def _task_deletion_result(
+    command_id: UUID,
+    command_type: str,
+    outcome: TaskDeletionResult,
+) -> HarnessResult:
+    effect = outcome.effect
+    if effect is not None and effect.get("kind") == "task_delete_ambiguous":
+        return HarnessResult(
+            status="awaiting_selection",
+            command_id=command_id,
+            command_type=command_type,
+            effect=effect,
+        )
+    if outcome.awaiting_confirmation:
+        return HarnessResult(
+            status="awaiting_confirmation",
+            command_id=command_id,
+            command_type=command_type,
+            confirmation_id=outcome.confirmation_id,
+            effect=effect,
+        )
+    if outcome.error_code is not None:
+        status = "rejected" if outcome.error_code == "CONFIRMATION_CANCELLED" else "failed"
+        return HarnessResult(
+            status=status,
+            command_id=command_id,
+            command_type=command_type,
+            error_code=outcome.error_code,
+            effect=effect,
+        )
+    if effect is None:
+        raise RuntimeError("successful task deletion has no effect")
+    return HarnessResult(
+        status="duplicate" if outcome.duplicate else "executed",
+        command_id=command_id,
+        command_type=command_type,
+        effect=effect,
+    )
