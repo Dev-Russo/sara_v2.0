@@ -69,7 +69,8 @@
 │   │   ├── telegram/
 │   │   │   ├── adapter.py
 │   │   │   ├── keyboards.py
-│   │   │   └── messages.py
+│   │   │   ├── messages.py
+│   │   │   └── updates.py
 │   │   └── llm/
 │   │       ├── interface.py
 │   │       └── anthropic_adapter.py
@@ -101,7 +102,8 @@
 │   ├── DATA_MODEL.md
 │   ├── CONVENTIONS.md
 │   ├── TESTING.md
-│   └── DEVELOPMENT.md
+│   ├── DEVELOPMENT.md
+│   └── ROADMAP.md
 ├── requirements.txt
 ├── docker-compose.yaml
 ├── AGENTS.md
