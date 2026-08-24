@@ -6,35 +6,42 @@ responsabilidade principal.
 
 ## Última entrega
 
-### `feat: add Telegram update adapter`
+### `feat: map Telegram updates to trusted users`
 
 - Concluído.
-- Validar updates recebidos do Telegram com uma função determinística.
-- Produzir `TelegramMessageUpdate` para mensagens privadas de texto.
-- Produzir `TelegramConfirmationUpdate` para callbacks de confirmação.
-- Ignorar grupos, canais e updates de mídia sem texto.
-- Não chamar Graph, banco, LLM ou Telegram neste commit.
+- Resolver `chat_id` para o `User.id` interno.
+- Rejeitar chats privados não autorizados.
+- Deduplicar `update_id` com `ProcessedUpdate` dentro de uma transação.
+- Criar `MessageEvent` e `ConfirmationEvent` após validar a identidade.
+- Manter o Graph fora deste commit.
 
 ## Próximo commit
 
-### `feat: map Telegram updates to trusted users`
+### `feat: connect Telegram ingress to Graph`
 
-- Resolver `chat_id` para o `User.id` interno.
-- Rejeitar chats privados não autorizados.
-- Persistir/deduplicar `update_id` com `ProcessedUpdate`.
-- Criar `MessageEvent` e `ConfirmationEvent` somente após a identidade ser
-  validada.
-- Cobrir ownership e repetição do mesmo update com testes.
+- Ler o corpo do webhook e chamar `parse_telegram_update`.
+- Encaminhar eventos aceitos pelo `TelegramIngressAdapter` ao Graph.
+- Criar `ExecutionContext` com identidade e correlação confiáveis.
+- Manter duplicados e chats não autorizados fora do Graph.
+- Ainda não enviar respostas pelo Telegram.
 
 ## Sequência planejada
 
-1. Adapter de updates Telegram.
-2. Identidade confiável e deduplicação de updates.
+1. ~~Adapter de updates Telegram.~~
+2. ~~Identidade confiável e deduplicação de updates.~~
 3. Chamada do Graph a partir de mensagens Telegram.
 4. Envio de `ResponseDecision` pelo `TelegramGateway`.
 5. Callbacks de confirmação conectados ao `ConfirmationResolver`.
 6. Checkpoint persistido para retomada de fluxos e confirmações.
 7. Fluxo de deleção completo pelo Telegram.
+
+## Histórico recente
+
+### `feat: add Telegram update adapter`
+
+- Concluído.
+- Parser determinístico para mensagens privadas e callbacks de confirmação.
+- Updates de grupos, canais e mídia sem texto permanecem fora do escopo.
 
 ## Regra de atualização
 

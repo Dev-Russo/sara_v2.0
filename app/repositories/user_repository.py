@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -17,3 +18,8 @@ class SqlAlchemyUserRepository(UserRepository):
         if user is None:
             self._session.add(User(id=user_id))
             await self._session.flush()
+
+    async def get_id_by_telegram_chat_id(self, chat_id: str) -> UUID | None:
+        return await self._session.scalar(
+            select(User.id).where(User.telegram_chat_id == chat_id),
+        )

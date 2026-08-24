@@ -56,6 +56,7 @@
 │   │   ├── interfaces.py
 │   │   ├── task_repository.py
 │   │   ├── user_repository.py
+│   │   ├── processed_update_repository.py
 │   │   ├── command_execution_repository.py
 │   │   ├── reminder_repository.py
 │   │   ├── session_repository.py
@@ -68,6 +69,7 @@
 │   ├── integrations/
 │   │   ├── telegram/
 │   │   │   ├── adapter.py
+│   │   │   ├── ingress.py
 │   │   │   ├── keyboards.py
 │   │   │   ├── messages.py
 │   │   │   └── updates.py
@@ -92,7 +94,9 @@
 │   └── e2e/
 ├── alembic/
 │   └── versions/
-│       └── 0001_create_users_tasks_and_executions.py
+│       ├── 0001_create_users_tasks_and_executions.py
+│       ├── 0002_add_confirmation_requests.py
+│       └── 0003_add_processed_updates.py
 ├── scripts/
 ├── docs/
 │   ├── PROJECT_CONTEXT.md

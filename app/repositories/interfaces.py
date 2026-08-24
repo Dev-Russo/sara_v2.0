@@ -51,8 +51,24 @@ class TaskRepository(Protocol):
 
 
 class UserRepository(Protocol):
+    async def get_id_by_telegram_chat_id(self, chat_id: str) -> UUID | None:
+        """Finds the internal user linked to an authorized private chat."""
+
     async def ensure_exists(self, user_id: UUID) -> None:
         """Garante o usuário autenticado sem aceitar identidade do payload."""
+
+
+class ProcessedUpdateRepository(Protocol):
+    async def record_if_new(
+        self,
+        *,
+        update_id: int,
+        user_id: UUID,
+        telegram_chat_id: str,
+        event_type: str,
+        received_at: datetime,
+    ) -> bool:
+        """Record an update once inside the ingress transaction."""
 
 
 class ConfirmationRepository(Protocol):
