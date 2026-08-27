@@ -6,36 +6,45 @@ responsabilidade principal.
 
 ## Última entrega
 
-### `feat: map Telegram updates to trusted users`
-
-- Concluído.
-- Resolver `chat_id` para o `User.id` interno.
-- Rejeitar chats privados não autorizados.
-- Deduplicar `update_id` com `ProcessedUpdate` dentro de uma transação.
-- Criar `MessageEvent` e `ConfirmationEvent` após validar a identidade.
-- Manter o Graph fora deste commit.
-
-## Próximo commit
-
 ### `feat: connect Telegram ingress to Graph`
 
+- Concluído.
 - Ler o corpo do webhook e chamar `parse_telegram_update`.
 - Encaminhar eventos aceitos pelo `TelegramIngressAdapter` ao Graph.
 - Criar `ExecutionContext` com identidade e correlação confiáveis.
-- Manter duplicados e chats não autorizados fora do Graph.
+- Manter duplicados, chats não autorizados e Graph indisponível fora do processamento.
 - Ainda não enviar respostas pelo Telegram.
+
+## Próximo commit
+
+### `feat: send Telegram responses through TelegramGateway`
+
+- Transformar o `ResponseDecision` devolvido pelo Graph em mensagem do Telegram.
+- Usar o `TelegramGateway` como única porta de saída.
+- Enviar respostas somente após o processamento do Graph.
+- Manter retries de entrega separados da execução do comando de domínio.
 
 ## Sequência planejada
 
 1. ~~Adapter de updates Telegram.~~
 2. ~~Identidade confiável e deduplicação de updates.~~
-3. Chamada do Graph a partir de mensagens Telegram.
+3. ~~Chamada do Graph a partir de mensagens Telegram.~~
 4. Envio de `ResponseDecision` pelo `TelegramGateway`.
 5. Callbacks de confirmação conectados ao `ConfirmationResolver`.
 6. Checkpoint persistido para retomada de fluxos e confirmações.
 7. Fluxo de deleção completo pelo Telegram.
 
 ## Histórico recente
+
+### `feat: connect Telegram ingress to Graph`
+
+- Concluído.
+- O webhook interpreta updates, valida o ingresso confiável e encaminha eventos aceitos ao Graph.
+
+### `feat: map Telegram updates to trusted users`
+
+- Concluído.
+- O ingresso resolve identidade, deduplica updates e cria eventos internos.
 
 ### `feat: add Telegram update adapter`
 

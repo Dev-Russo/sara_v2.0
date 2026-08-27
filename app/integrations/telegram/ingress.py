@@ -1,6 +1,6 @@
 """Entrada confiavel de updates Telegram antes do Graph."""
 
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -17,6 +17,13 @@ from app.schemas.events import ConfirmationEvent, MessageEvent
 
 IngressStatus = Literal["accepted", "duplicate", "unauthorized"]
 InternalEvent = MessageEvent | ConfirmationEvent
+
+
+class TelegramIngress(Protocol):
+    """Seam usada pela borda HTTP para validar e deduplicar updates."""
+
+    async def ingest(self, update: TelegramUpdate) -> "TelegramIngressResult":
+        """Converte um update validado em evento interno quando autorizado."""
 
 
 class TelegramIngressResult(BaseModel):
