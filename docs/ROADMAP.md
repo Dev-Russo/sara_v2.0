@@ -6,22 +6,20 @@ limitada a uma responsabilidade principal.
 
 ## Última entrega
 
-### `feat: deliver Telegram responses through TelegramGateway`
-
-- Concluído.
-- Transformar o `ResponseDecision` devolvido pelo Graph em mensagem do Telegram.
-- Usar o `TelegramGateway` como única porta de saída.
-- Enviar respostas somente após o processamento do Graph.
-- Persistir snapshots de entrega e repetir apenas entregas pendentes.
-- Exibir teclado inline para confirmações sem alterar o contrato do domínio.
-
-## Próximo commit
-
 ### `feat: connect Telegram callback acknowledgements`
 
+- Concluído.
 - Responder callbacks com `answerCallbackQuery`.
 - Confirmar e cancelar pendências pelo caminho determinístico do `ConfirmationResolver`.
 - Manter callbacks fora do Supervisor e sem nova interpretação do LLM.
+
+## Próximo commit
+
+### `feat: persist Graph checkpoints for Telegram confirmations`
+
+- Persistir o estado necessário para retomar fluxos e confirmações após reinício.
+- Retomar o mesmo checkpoint sem reexecutar a interpretação do LLM.
+- Manter ownership, idempotência e consumo único da confirmação.
 
 ## Sequência planejada
 
@@ -29,11 +27,16 @@ limitada a uma responsabilidade principal.
 2. ~~Identidade confiável e deduplicação de updates.~~
 3. ~~Chamada do Graph a partir de mensagens Telegram.~~
 4. ~~Envio de `ResponseDecision` pelo `TelegramGateway`.~~
-5. Acknowledgement e callbacks de confirmações conectados ao `ConfirmationResolver`.
+5. ~~Acknowledgement e callbacks de confirmações conectados ao `ConfirmationResolver`.~~
 6. Checkpoint persistido para retomada de fluxos e confirmações.
 7. Fluxo de deleção completo pelo Telegram.
 
 ## Histórico recente
+
+### `feat: connect Telegram callback acknowledgements`
+
+- Concluído.
+- O webhook reconhece callbacks e mantém confirmações no caminho determinístico do Harness.
 
 ### `feat: deliver Telegram responses through TelegramGateway`
 

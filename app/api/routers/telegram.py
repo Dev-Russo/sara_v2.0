@@ -8,7 +8,11 @@ from app.config import Settings
 from app.integrations.telegram.delivery import TelegramResponseDelivery
 from app.integrations.telegram.ingress import TelegramIngress
 from app.integrations.telegram.messages import build_outgoing_message
-from app.integrations.telegram.updates import TelegramPayloadError, parse_telegram_update
+from app.integrations.telegram.updates import (
+    TelegramConfirmationUpdate,
+    TelegramPayloadError,
+    parse_telegram_update,
+)
 from app.schemas.events import ConfirmationEvent, ExecutionContext, MessageEvent
 from app.schemas.results import HarnessResult, ResponseDecision
 
@@ -59,6 +63,15 @@ async def telegram_webhook(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Telegram delivery is unavailable",
         )
+
+    if isinstance(update, TelegramConfirmationUpdate):
+        try:
+            await delivery.answer_callback_query(update.callback_query_id)
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Telegram callback acknowledgement failed",
+            ) from error
 
     ingress: TelegramIngress = request.app.state.telegram_ingress
     ingress_result = await ingress.ingest(update)

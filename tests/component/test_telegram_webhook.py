@@ -64,6 +64,7 @@ class RecordingGraph:
 @dataclass
 class RecordingDelivery(TelegramResponseDelivery):
     calls: list[tuple[int, UUID, str, TelegramOutgoingMessage]] = field(default_factory=list)
+    callback_query_ids: list[str] = field(default_factory=list)
 
     async def deliver(
         self,
@@ -77,6 +78,9 @@ class RecordingDelivery(TelegramResponseDelivery):
 
     async def retry(self, delivery: TelegramDeliveryData) -> None:
         del delivery
+
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        self.callback_query_ids.append(callback_query_id)
 
 
 def make_client(

@@ -48,6 +48,33 @@ async def test_gateway_sends_text_and_inline_keyboard_to_telegram() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gateway_answers_telegram_callback_query() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://telegram.test",
+    )
+
+    await HttpxTelegramGateway(
+        bot_token="secret-token",
+        http_client=client,
+        api_base_url="https://telegram.test",
+    ).answer_callback_query("callback-44")
+    await client.aclose()
+
+    assert len(requests) == 1
+    assert requests[0].url == "https://telegram.test/botsecret-token/answerCallbackQuery"
+    assert json.loads(requests[0].content) == {
+        "callback_query_id": "callback-44",
+    }
+
+
+@pytest.mark.asyncio
 async def test_gateway_rejects_unsuccessful_telegram_response_without_exposing_token() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"ok": False, "description": "Forbidden"})

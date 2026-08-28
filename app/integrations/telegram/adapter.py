@@ -21,3 +21,6 @@ class TelegramGateway(Protocol):
         reply_markup: TelegramReplyMarkup | None = None,
     ) -> None:
         """Envia uma mensagem sem expor o cliente externo aos agentes."""
+
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        """Encerra o estado de carregamento de um callback no Telegram."""

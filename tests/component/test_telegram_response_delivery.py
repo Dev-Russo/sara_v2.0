@@ -12,7 +12,7 @@ from app.integrations.telegram.ingress import (
 from app.integrations.telegram.messages import TelegramOutgoingMessage
 from app.integrations.telegram.updates import TelegramUpdate
 from app.main import create_app
-from app.schemas.events import MessageEvent
+from app.schemas.events import ConfirmationEvent, MessageEvent
 from app.schemas.results import ResponseDecision
 from app.schemas.telegram import TelegramDeliveryData
 
@@ -43,6 +43,7 @@ class RecordingGraph:
 class RecordingDelivery(TelegramResponseDelivery):
     calls: list[tuple[int, UUID, str, TelegramOutgoingMessage]] = field(default_factory=list)
     retries: list[TelegramDeliveryData] = field(default_factory=list)
+    callback_query_ids: list[str] = field(default_factory=list)
     fail: bool = False
 
     async def deliver(
@@ -59,6 +60,9 @@ class RecordingDelivery(TelegramResponseDelivery):
 
     async def retry(self, delivery: TelegramDeliveryData) -> None:
         self.retries.append(delivery)
+
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        self.callback_query_ids.append(callback_query_id)
 
 
 def message_payload(*, update_id: int = 42) -> dict[str, object]:
@@ -173,3 +177,39 @@ def test_webhook_returns_controlled_error_when_delivery_fails() -> None:
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Telegram response delivery failed"}
+
+
+def test_webhook_acknowledges_confirmation_callback() -> None:
+    user_id = uuid4()
+    delivery = RecordingDelivery()
+    ingress = RecordingIngress(
+        TelegramIngressResult(
+            status="accepted",
+            event=ConfirmationEvent(
+                confirmation_id=uuid4(),
+                user_id=user_id,
+                decision="confirm",
+                received_at="2026-08-27T12:00:00Z",
+                source="telegram",
+            ),
+        ),
+    )
+    response = make_client(
+        ingress,
+        RecordingGraph(),
+        delivery,
+    ).post(
+        "/webhooks/telegram",
+        json={
+            "update_id": 44,
+            "callback_query": {
+                "id": "callback-44",
+                "data": "confirmation:confirm:11111111-1111-1111-1111-111111111111",
+                "message": {"chat": {"id": 12345, "type": "private"}},
+            },
+        },
+        headers={"X-Telegram-Bot-Api-Secret-Token": "webhook-secret"},
+    )
+
+    assert response.status_code == 202
+    assert delivery.callback_query_ids == ["callback-44"]

@@ -25,6 +25,9 @@ class TelegramResponseDelivery(Protocol):
     async def retry(self, delivery: TelegramDeliveryData) -> None:
         """Reenvia somente uma resposta jÃ¡ persistida como pendente."""
 
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        """Reconhece um callback sem executar nenhuma regra de domÃ­nio."""
+
 
 class TelegramDeliveryService(TelegramResponseDelivery):
     """MantÃ©m entrega externa separada da execuÃ§Ã£o do comando de domÃ­nio."""
@@ -68,6 +71,9 @@ class TelegramDeliveryService(TelegramResponseDelivery):
                 )
         if current is not None:
             await self._attempt(current)
+
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        await self._gateway.answer_callback_query(callback_query_id)
 
     async def _attempt(self, delivery: TelegramDeliveryData) -> None:
         async with self._session_factory() as session:
