@@ -4,13 +4,17 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.integrations.telegram.delivery import TelegramResponseDelivery
 from app.integrations.telegram.ingress import IngressStatus, TelegramIngressResult
+from app.integrations.telegram.messages import TelegramOutgoingMessage
 from app.integrations.telegram.updates import (
     TelegramMessageUpdate,
     TelegramUpdate,
 )
 from app.main import create_app
 from app.schemas.events import ConfirmationEvent, MessageEvent
+from app.schemas.results import ResponseDecision
+from app.schemas.telegram import TelegramDeliveryData
 
 SECRET = "webhook-secret"
 
@@ -51,7 +55,28 @@ class RecordingGraph:
 
     async def ainvoke(self, state: dict[str, object]) -> dict[str, object]:
         self.calls.append(state)
-        return state
+        return {
+            **state,
+            "response_decision": ResponseDecision(message="Resposta de teste"),
+        }
+
+
+@dataclass
+class RecordingDelivery(TelegramResponseDelivery):
+    calls: list[tuple[int, UUID, str, TelegramOutgoingMessage]] = field(default_factory=list)
+
+    async def deliver(
+        self,
+        *,
+        update_id: int,
+        user_id: UUID,
+        chat_id: str,
+        message: TelegramOutgoingMessage,
+    ) -> None:
+        self.calls.append((update_id, user_id, chat_id, message))
+
+    async def retry(self, delivery: TelegramDeliveryData) -> None:
+        del delivery
 
 
 def make_client(
@@ -62,6 +87,7 @@ def make_client(
         settings=Settings(telegram_webhook_secret=SECRET),
         graph=graph,  # type: ignore[arg-type]
         telegram_ingress=ingress,  # type: ignore[arg-type]
+        telegram_delivery=RecordingDelivery(),
     )
     return TestClient(application)
 

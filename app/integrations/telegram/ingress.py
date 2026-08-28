@@ -1,4 +1,4 @@
-"""Entrada confiavel de updates Telegram antes do Graph."""
+"""Entrada confiável de updates Telegram antes do Graph."""
 
 from typing import Literal, Protocol
 from uuid import UUID
@@ -12,10 +12,12 @@ from app.integrations.telegram.updates import (
     TelegramUpdate,
 )
 from app.repositories.processed_update_repository import SqlAlchemyProcessedUpdateRepository
+from app.repositories.telegram_delivery_repository import SqlAlchemyTelegramDeliveryRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
 from app.schemas.events import ConfirmationEvent, MessageEvent
+from app.schemas.telegram import TelegramDeliveryData
 
-IngressStatus = Literal["accepted", "duplicate", "unauthorized"]
+IngressStatus = Literal["accepted", "duplicate", "unauthorized", "delivery_retry"]
 InternalEvent = MessageEvent | ConfirmationEvent
 
 
@@ -27,10 +29,12 @@ class TelegramIngress(Protocol):
 
 
 class TelegramIngressResult(BaseModel):
-    """Resultado estruturado da validacao de identidade e deduplicacao."""
+    """Resultado estruturado de identidade, deduplicação e retry de entrega."""
 
     status: IngressStatus
+    user_id: UUID | None = None
     event: InternalEvent | None = None
+    pending_delivery: TelegramDeliveryData | None = None
 
 
 class TelegramIngressAdapter:
@@ -58,10 +62,23 @@ class TelegramIngressAdapter:
                     received_at=update.received_at,
                 )
                 if not is_new:
-                    return TelegramIngressResult(status="duplicate")
+                    pending_delivery = await SqlAlchemyTelegramDeliveryRepository(
+                        session,
+                    ).get_pending_for_update(
+                        update_id=update.update_id,
+                        user_id=user_id,
+                    )
+                    if pending_delivery is not None:
+                        return TelegramIngressResult(
+                            status="delivery_retry",
+                            user_id=user_id,
+                            pending_delivery=pending_delivery,
+                        )
+                    return TelegramIngressResult(status="duplicate", user_id=user_id)
 
                 return TelegramIngressResult(
                     status="accepted",
+                    user_id=user_id,
                     event=event,
                 )
 

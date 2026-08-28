@@ -12,6 +12,7 @@ from app.schemas.commands import (
     TaskUpdateChanges,
 )
 from app.schemas.tasks import TaskListResult, TaskView
+from app.schemas.telegram import TelegramDeliveryData, TelegramReplyMarkup
 
 
 class TaskRepository(Protocol):
@@ -69,6 +70,42 @@ class ProcessedUpdateRepository(Protocol):
         received_at: datetime,
     ) -> bool:
         """Record an update once inside the ingress transaction."""
+
+
+class TelegramDeliveryRepository(Protocol):
+    async def create_pending(
+        self,
+        *,
+        update_id: int,
+        user_id: UUID,
+        chat_id: str,
+        text: str,
+        reply_markup: TelegramReplyMarkup | None,
+    ) -> TelegramDeliveryData:
+        """Persiste um snapshot de resposta antes da chamada externa."""
+
+    async def get_pending_for_update(
+        self,
+        *,
+        update_id: int,
+        user_id: UUID,
+    ) -> TelegramDeliveryData | None:
+        """Busca uma entrega pendente dentro do escopo do usuÃ¡rio."""
+
+    async def mark_attempt(self, *, update_id: int, user_id: UUID) -> None:
+        """Registra uma tentativa antes do envio externo."""
+
+    async def mark_failed(
+        self,
+        *,
+        update_id: int,
+        user_id: UUID,
+        error_code: str,
+    ) -> None:
+        """MantÃ©m a entrega pendente e registra um cÃ³digo seguro de falha."""
+
+    async def mark_delivered(self, *, update_id: int, user_id: UUID) -> None:
+        """Marca a entrega somente apÃ³s o provedor confirmar sucesso."""
 
 
 class ConfirmationRepository(Protocol):

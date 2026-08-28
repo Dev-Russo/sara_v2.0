@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+import httpx
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -13,6 +14,8 @@ from app.harness.handlers import build_task_confirmation_resolver, register_task
 from app.harness.registry import CommandRegistry
 from app.harness.service import Harness
 from app.integrations.llm.anthropic_adapter import AnthropicAdapter
+from app.integrations.telegram.delivery import TelegramDeliveryService, TelegramResponseDelivery
+from app.integrations.telegram.gateway import HttpxTelegramGateway
 from app.integrations.telegram.ingress import TelegramIngressAdapter
 from app.services.tasks import TaskService
 
@@ -23,6 +26,8 @@ class RuntimeComponents:
 
     graph: CompiledStateGraph | None
     telegram_ingress: TelegramIngressAdapter
+    telegram_delivery: TelegramResponseDelivery | None
+    telegram_http_client: httpx.AsyncClient | None
 
 
 def build_runtime(settings: Settings) -> RuntimeComponents:
@@ -34,9 +39,21 @@ def build_runtime(settings: Settings) -> RuntimeComponents:
         if settings.llm_api_key and settings.llm_model
         else None
     )
+    http_client = None
+    delivery = None
+    if settings.telegram_bot_token:
+        http_client = httpx.AsyncClient(timeout=10.0)
+        gateway = HttpxTelegramGateway(
+            bot_token=settings.telegram_bot_token,
+            http_client=http_client,
+        )
+        delivery = TelegramDeliveryService(session_factory, gateway)
+
     return RuntimeComponents(
         graph=graph,
         telegram_ingress=TelegramIngressAdapter(session_factory),
+        telegram_delivery=delivery,
+        telegram_http_client=http_client,
     )
 
 
