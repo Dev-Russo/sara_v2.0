@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.task import TaskAgent
 from app.cli import CliSession
 from app.graph.builder import build_graph
+from app.graph.checkpoint import PersistentGraphRunner
 from app.harness.handlers import register_task_handlers
 from app.harness.registry import CommandRegistry
 from app.harness.service import Harness
@@ -35,12 +36,17 @@ async def test_cli_session_processes_message_through_real_task_agent(
         task_agent=TaskAgent(DeterministicLLM()),
         harness=Harness(registry),
     )
-    session = CliSession(graph=graph, user_id=uuid4())
+    runner = PersistentGraphRunner(graph, session_factory)
+    session = CliSession(graph=runner, user_id=uuid4())
 
     response = await session.process("comprar café")
 
     assert response == "Tarefa criada: Comprar café."
-    assert session.active_flow == "task"
+    continuation = await runner.get_continuation(
+        graph_thread_id=session.graph_thread_id,
+        user_id=session.user_id,
+    )
+    assert continuation.active_flow == "task"
 
 
 @pytest.mark.asyncio
@@ -54,9 +60,10 @@ async def test_cli_session_debug_trace_exposes_graph_decision_and_result(
         task_agent=TaskAgent(DeterministicLLM()),
         harness=Harness(registry),
     )
+    runner = PersistentGraphRunner(graph, session_factory)
     trace: list[str] = []
     session = CliSession(
-        graph=graph,
+        graph=runner,
         user_id=uuid4(),
         debug=True,
         trace_sink=trace.append,

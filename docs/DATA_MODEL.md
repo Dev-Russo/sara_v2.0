@@ -132,6 +132,23 @@ Campos mínimos:
 
 O estado em memória pode ser um cache, nunca a fonte de verdade para callbacks ou confirmações.
 
+### GraphCheckpoint
+
+Persistência atual do estado mínimo necessário para retomar um thread do
+Graph. Existe no máximo um registro por `graph_thread_id`; cada novo turno
+substitui o snapshot anterior e incrementa `version`.
+
+| Campo | Regra |
+| --- | --- |
+| `graph_thread_id` | Chave primária estável do thread; prefixos atuais: `telegram:` e `cli:`. |
+| `user_id` | Usuário dono do thread; consultas e gravações respeitam ownership. |
+| `state_payload` | JSON validado contendo somente estado de continuação, sem resultado transitório do turno. |
+| `version` | Controle otimista de concorrência para evitar sobrescrever outro turno. |
+| `created_at` / `updated_at` | Auditoria temporal do snapshot. |
+
+O checkpoint não substitui `ConfirmationRequest`: a confirmação persistida no
+Harness continua sendo a fonte de verdade para executar ou cancelar a mutação.
+
 ### ConversationMessage
 
 Histórico conversacional sujeito à política de retenção.

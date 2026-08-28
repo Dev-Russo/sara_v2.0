@@ -8,11 +8,17 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from langgraph.graph.state import CompiledStateGraph
 
 from app.config import get_settings
 from app.runtime import build_runtime_graph
+
+
+class DrawableGraph(Protocol):
+    def get_graph(self):
+        """Retorna a topologia desenhável do Graph."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,7 +30,7 @@ class GraphReport:
 
 
 def write_graph_report(
-    graph: CompiledStateGraph,
+    graph: DrawableGraph | CompiledStateGraph,
     output_dir: Path,
     *,
     name: str = "sara-graph",

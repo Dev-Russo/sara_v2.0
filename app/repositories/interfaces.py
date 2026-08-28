@@ -5,6 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.models.confirmation_request import ConfirmationRequest
+from app.schemas.checkpoints import GraphCheckpointData, GraphContinuationState
 from app.schemas.commands import (
     TaskCreatePayload,
     TaskListPayload,
@@ -106,6 +107,26 @@ class TelegramDeliveryRepository(Protocol):
 
     async def mark_delivered(self, *, update_id: int, user_id: UUID) -> None:
         """Marca a entrega somente apÃ³s o provedor confirmar sucesso."""
+
+
+class GraphCheckpointRepository(Protocol):
+    async def get_for_thread(
+        self,
+        *,
+        graph_thread_id: str,
+        user_id: UUID,
+    ) -> GraphCheckpointData | None:
+        """Carrega o último checkpoint dentro do escopo do usuário."""
+
+    async def save(
+        self,
+        *,
+        graph_thread_id: str,
+        user_id: UUID,
+        state: GraphContinuationState,
+        expected_version: int | None,
+    ) -> GraphCheckpointData:
+        """Salva um novo snapshot sem esconder o commit da transação."""
 
 
 class ConfirmationRepository(Protocol):

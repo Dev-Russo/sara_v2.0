@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agents.task import TaskAgent
 from app.cli import CliSession
 from app.graph.builder import build_graph
+from app.graph.checkpoint import PersistentGraphRunner
 from app.harness.handlers import register_task_handlers
 from app.harness.registry import CommandRegistry
 from app.harness.service import Harness
@@ -54,9 +55,10 @@ async def test_cli_session_keeps_ambiguous_task_candidates_for_next_turn(
         task_agent=TaskAgent(CompletionDeterministicLLM()),
         harness=Harness(registry),
     )
+    runner = PersistentGraphRunner(graph, session_factory)
     trace: list[str] = []
     session = CliSession(
-        graph=graph,
+        graph=runner,
         user_id=user_id,
         debug=True,
         trace_sink=trace.append,

@@ -3,6 +3,7 @@
 from app.models import (  # noqa: F401
     CommandExecution,
     ConfirmationRequest,
+    GraphCheckpoint,
     ProcessedUpdate,
     Task,
     User,

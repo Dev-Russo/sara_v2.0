@@ -10,6 +10,7 @@ from app.agents.task import TaskAgent
 from app.config import Settings
 from app.db.session import create_session_factory
 from app.graph.builder import build_graph
+from app.graph.checkpoint import GraphInvoker, GraphSession, PersistentGraphRunner
 from app.harness.handlers import build_task_confirmation_resolver, register_task_handlers
 from app.harness.registry import CommandRegistry
 from app.harness.service import Harness
@@ -24,7 +25,7 @@ from app.services.tasks import TaskService
 class RuntimeComponents:
     """Dependências compartilhadas pelos adapters de entrada e pelo Graph."""
 
-    graph: CompiledStateGraph | None
+    graph: GraphInvoker | None
     telegram_ingress: TelegramIngressAdapter
     telegram_delivery: TelegramResponseDelivery | None
     telegram_http_client: httpx.AsyncClient | None
@@ -34,9 +35,14 @@ def build_runtime(settings: Settings) -> RuntimeComponents:
     """Compõe as dependências reais usando uma única fábrica de sessões."""
 
     session_factory = create_session_factory(settings)
-    graph = (
+    compiled_graph = (
         _build_graph(settings, session_factory)
         if settings.llm_api_key and settings.llm_model
+        else None
+    )
+    graph = (
+        PersistentGraphRunner(compiled_graph, session_factory)
+        if compiled_graph is not None
         else None
     )
     http_client = None
@@ -57,13 +63,17 @@ def build_runtime(settings: Settings) -> RuntimeComponents:
     )
 
 
-def build_runtime_graph(settings: Settings) -> CompiledStateGraph | None:
+def build_runtime_graph(settings: Settings) -> GraphSession | None:
     """Compõe o caminho real quando as credenciais do LLM estão configuradas."""
 
     if not settings.llm_api_key or not settings.llm_model:
         return None
 
-    return _build_graph(settings, create_session_factory(settings))
+    session_factory = create_session_factory(settings)
+    return PersistentGraphRunner(
+        _build_graph(settings, session_factory),
+        session_factory,
+    )
 
 
 def _build_graph(

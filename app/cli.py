@@ -11,15 +11,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from langgraph.graph.state import CompiledStateGraph
-
 from app.config import Settings, get_settings
+from app.graph.checkpoint import GraphSession
 from app.graph.state import GraphState
 from app.harness.confirmation import normalize_confirmation
 from app.runtime import build_runtime_graph
-from app.schemas.commands import TaskDeletePayload, TaskUpdatePayload
 from app.schemas.events import ConfirmationEvent, ExecutionContext, MessageEvent
-from app.schemas.tasks import TaskCandidate
 
 logger = logging.getLogger(__name__)
 EXIT_COMMANDS = {"/exit", "/quit"}
@@ -29,14 +26,9 @@ EXIT_COMMANDS = {"/exit", "/quit"}
 class CliSession:
     """Mantém identidade e fluxo da conversa durante uma sessão do terminal."""
 
-    graph: CompiledStateGraph
+    graph: GraphSession
     user_id: UUID
     graph_thread_id: str = field(default_factory=lambda: f"cli:{uuid4()}")
-    active_flow: str | None = None
-    pending_task_candidates: list[TaskCandidate] = field(default_factory=list)
-    pending_task_update: TaskUpdatePayload | None = None
-    pending_task_delete: TaskDeletePayload | None = None
-    pending_confirmation_id: UUID | None = None
     debug: bool = False
     trace_sink: Callable[[str], None] = print
 
@@ -48,14 +40,18 @@ class CliSession:
             return "Digite uma mensagem para continuar."
 
         turn_id = uuid4()
+        continuation = await self.graph.get_continuation(
+            graph_thread_id=self.graph_thread_id,
+            user_id=self.user_id,
+        )
         confirmation_decision = (
             normalize_confirmation(normalized_text)
-            if self.pending_confirmation_id is not None
+            if continuation.pending_confirmation_id is not None
             else None
         )
         if confirmation_decision is not None:
             event = ConfirmationEvent(
-                confirmation_id=self.pending_confirmation_id,
+                confirmation_id=continuation.pending_confirmation_id,
                 user_id=self.user_id,
                 decision=confirmation_decision,
                 received_at=datetime.now(UTC),
@@ -77,35 +73,8 @@ class CliSession:
             source="cli",
         )
         state: GraphState = {"event": event, "context": context}
-        if self.active_flow is not None:
-            state["active_flow"] = self.active_flow
-        if self.pending_task_candidates:
-            state["pending_task_candidates"] = self.pending_task_candidates
-        if self.pending_task_update is not None:
-            state["pending_task_update"] = self.pending_task_update
-        if self.pending_task_delete is not None:
-            state["pending_task_delete"] = self.pending_task_delete
-        if self.pending_confirmation_id is not None:
-            state["pending_confirmation_id"] = self.pending_confirmation_id
 
         result = await self.graph.ainvoke(state)
-        self.active_flow = result.get("active_flow")
-        self.pending_task_candidates = result.get(
-            "pending_task_candidates",
-            self.pending_task_candidates,
-        )
-        self.pending_task_update = result.get(
-            "pending_task_update",
-            self.pending_task_update,
-        )
-        self.pending_task_delete = result.get(
-            "pending_task_delete",
-            self.pending_task_delete,
-        )
-        self.pending_confirmation_id = result.get(
-            "pending_confirmation_id",
-            self.pending_confirmation_id,
-        )
         if self.debug:
             self._trace_model("agent_decision", result.get("agent_decision"))
             self._trace_model("resolved_command", result.get("resolved_command"))
@@ -138,6 +107,7 @@ async def run_cli(settings: Settings | None = None, *, debug: bool = False) -> i
     session = CliSession(
         graph=graph,
         user_id=runtime_settings.cli_user_id,
+        graph_thread_id=f"cli:{runtime_settings.cli_user_id}",
         debug=debug,
     )
     print("SARA CLI. Digite /exit para sair.")

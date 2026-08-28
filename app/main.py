@@ -1,11 +1,11 @@
 """Ponto de composição da aplicação FastAPI."""
 
 from fastapi import FastAPI
-from langgraph.graph.state import CompiledStateGraph
 
 from app.api.routers.health import router as health_router
 from app.api.routers.telegram import router as telegram_router
 from app.config import Settings, get_settings
+from app.graph.checkpoint import GraphInvoker
 from app.integrations.telegram.delivery import TelegramResponseDelivery
 from app.integrations.telegram.ingress import TelegramIngress
 from app.runtime import build_runtime
@@ -13,7 +13,7 @@ from app.runtime import build_runtime
 
 def create_app(
     settings: Settings | None = None,
-    graph: CompiledStateGraph | None = None,
+    graph: GraphInvoker | None = None,
     telegram_ingress: TelegramIngress | None = None,
     telegram_delivery: TelegramResponseDelivery | None = None,
 ) -> FastAPI:

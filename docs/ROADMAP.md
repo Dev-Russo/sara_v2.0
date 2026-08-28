@@ -6,20 +6,20 @@ limitada a uma responsabilidade principal.
 
 ## Última entrega
 
-### `feat: connect Telegram callback acknowledgements`
+### `feat: persist Graph checkpoints for Telegram confirmations`
 
 - Concluído.
-- Responder callbacks com `answerCallbackQuery`.
-- Confirmar e cancelar pendências pelo caminho determinístico do `ConfirmationResolver`.
-- Manter callbacks fora do Supervisor e sem nova interpretação do LLM.
+- Persistir somente o estado de continuação necessário para retomar fluxos e confirmações.
+- Reidratar o mesmo thread após reinício sem persistir o resultado transitório do turno.
+- Aplicar a mesma seam ao Telegram e ao CLI, preservando ownership e versionamento.
 
 ## Próximo commit
 
-### `feat: persist Graph checkpoints for Telegram confirmations`
+### `feat: complete Telegram task deletion flow`
 
-- Persistir o estado necessário para retomar fluxos e confirmações após reinício.
-- Retomar o mesmo checkpoint sem reexecutar a interpretação do LLM.
-- Manter ownership, idempotência e consumo único da confirmação.
+- Exercitar o fluxo completo de exclusão iniciado por mensagem Telegram.
+- Retomar confirmação persistida e executar a mutação somente pelo Harness.
+- Entregar ao usuário o efeito confirmado, incluindo os casos de cancelamento e erro controlado.
 
 ## Sequência planejada
 
@@ -28,10 +28,16 @@ limitada a uma responsabilidade principal.
 3. ~~Chamada do Graph a partir de mensagens Telegram.~~
 4. ~~Envio de `ResponseDecision` pelo `TelegramGateway`.~~
 5. ~~Acknowledgement e callbacks de confirmações conectados ao `ConfirmationResolver`.~~
-6. Checkpoint persistido para retomada de fluxos e confirmações.
+6. ~~Checkpoint persistido para retomada de fluxos e confirmações.~~
 7. Fluxo de deleção completo pelo Telegram.
 
 ## Histórico recente
+
+### `feat: persist Graph checkpoints for Telegram confirmations`
+
+- Concluído.
+- O banco mantém o último snapshot de continuação por thread, com ownership e controle de versão.
+- Telegram e CLI reidratam confirmações sem depender de memória local ou de nova chamada ao LLM.
 
 ### `feat: connect Telegram callback acknowledgements`
 
