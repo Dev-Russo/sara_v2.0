@@ -6,20 +6,17 @@ limitada a uma responsabilidade principal.
 
 ## Última entrega
 
-### `feat: persist Graph checkpoints for Telegram confirmations`
+### `feat: complete Telegram task deletion flow`
 
 - Concluído.
-- Persistir somente o estado de continuação necessário para retomar fluxos e confirmações.
-- Reidratar o mesmo thread após reinício sem persistir o resultado transitório do turno.
-- Aplicar a mesma seam ao Telegram e ao CLI, preservando ownership e versionamento.
+- Exclusão individual iniciada por mensagem Telegram percorre ingress, Graph persistente,
+  Harness, confirmação e entrega.
+- Confirmações sobrevivem ao reinício do runner e callbacks não repetem a mutação.
+- Cancelamento e confirmação expirada retornam efeitos controlados sem alterar a tarefa.
 
 ## Próximo commit
 
-### `feat: complete Telegram task deletion flow`
-
-- Exercitar o fluxo completo de exclusão iniciado por mensagem Telegram.
-- Retomar confirmação persistida e executar a mutação somente pelo Harness.
-- Entregar ao usuário o efeito confirmado, incluindo os casos de cancelamento e erro controlado.
+Ainda não definido; revisar a próxima fatia do ciclo Telegram.
 
 ## Sequência planejada
 
@@ -29,7 +26,7 @@ limitada a uma responsabilidade principal.
 4. ~~Envio de `ResponseDecision` pelo `TelegramGateway`.~~
 5. ~~Acknowledgement e callbacks de confirmações conectados ao `ConfirmationResolver`.~~
 6. ~~Checkpoint persistido para retomada de fluxos e confirmações.~~
-7. Fluxo de deleção completo pelo Telegram.
+7. ~~Fluxo de deleção completo pelo Telegram.~~
 
 ## Histórico recente
 
@@ -38,6 +35,12 @@ limitada a uma responsabilidade principal.
 - Concluído.
 - O banco mantém o último snapshot de continuação por thread, com ownership e controle de versão.
 - Telegram e CLI reidratam confirmações sem depender de memória local ou de nova chamada ao LLM.
+
+### `feat: complete Telegram task deletion flow`
+
+- Concluído.
+- O fluxo HTTP integrado valida confirmação, retomada após reinício, cancelamento,
+  expiração e idempotência sem chamar Telegram ou LLM reais.
 
 ### `feat: connect Telegram callback acknowledgements`
 
