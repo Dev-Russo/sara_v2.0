@@ -14,9 +14,20 @@ limitada a uma responsabilidade principal.
 - Confirmações sobrevivem ao reinício do runner e callbacks não repetem a mutação.
 - Cancelamento e confirmação expirada retornam efeitos controlados sem alterar a tarefa.
 
+### `chore: prepare OCI production deployment`
+
+- Concluído.
+- Imagem Docker, Compose de produção, migrations no startup e documentação operacional foram adicionados.
+- A SARA foi publicada na VM OCI com PostgreSQL persistente, Caddy/HTTPS e webhook Telegram ativo.
+- O runtime FastAPI passou a fechar o cliente HTTP pelo lifespan compatível com as versões atuais.
+
 ## Próximo commit
 
-Ainda não definido; revisar a próxima fatia do ciclo Telegram.
+`feat: provision Telegram users from trusted chat configuration`
+
+- Criar o usuário Telegram inicial de forma idempotente durante o provisionamento.
+- Usar `ALLOWED_CHAT_ID` como configuração de ingresso confiável, sem aceitar `user_id` do payload.
+- Remover a necessidade de seed manual no banco para o primeiro deploy.
 
 ## Sequência planejada
 
@@ -27,6 +38,11 @@ Ainda não definido; revisar a próxima fatia do ciclo Telegram.
 5. ~~Acknowledgement e callbacks de confirmações conectados ao `ConfirmationResolver`.~~
 6. ~~Checkpoint persistido para retomada de fluxos e confirmações.~~
 7. ~~Fluxo de deleção completo pelo Telegram.~~
+8. Provisionamento idempotente do usuário Telegram autorizado.
+9. Fluxo de planejamento com sessão persistida e remanejamento de tarefas.
+10. Revisão diária somente leitura usando o mesmo Graph e Harness.
+11. Lembretes vinculados a tarefas com Scheduler e entrega idempotente.
+12. Operações em lote com confirmação persistida e consumo único.
 
 ## Histórico recente
 
@@ -41,6 +57,12 @@ Ainda não definido; revisar a próxima fatia do ciclo Telegram.
 - Concluído.
 - O fluxo HTTP integrado valida confirmação, retomada após reinício, cancelamento,
   expiração e idempotência sem chamar Telegram ou LLM reais.
+
+### `chore: prepare OCI production deployment`
+
+- Concluído.
+- A aplicação foi empacotada e validada em uma VM OCI com Docker Compose, PostgreSQL persistente,
+  Caddy, HTTPS e webhook Telegram.
 
 ### `feat: connect Telegram callback acknowledgements`
 

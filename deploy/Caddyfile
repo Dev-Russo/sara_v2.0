@@ -1,0 +1,9 @@
+137-131-224-135.sslip.io {
+    handle_path /sara/* {
+        reverse_proxy sara-api:8000
+    }
+
+    handle {
+        reverse_proxy app:8000
+    }
+}
