@@ -46,7 +46,7 @@ async def test_response_agent_does_not_claim_success_for_rejected_command() -> N
 
     decision = await DeterministicResponseAgent().respond(result, make_context())
 
-    assert decision.message == "NÃ£o foi possÃ­vel executar esse comando."
+    assert decision.message == "Não foi possível executar esse comando."
 
 
 @pytest.mark.asyncio

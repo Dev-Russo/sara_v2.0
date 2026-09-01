@@ -48,6 +48,29 @@ async def test_gateway_sends_text_and_inline_keyboard_to_telegram() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gateway_renders_markdown_bold_as_telegram_html() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    await HttpxTelegramGateway(
+        bot_token="secret-token",
+        http_client=client,
+    ).send_message("12345", "**Criar tarefa**: comprar <leite>")
+    await client.aclose()
+
+    assert json.loads(requests[0].content) == {
+        "chat_id": "12345",
+        "text": "<b>Criar tarefa</b>: comprar &lt;leite&gt;",
+        "parse_mode": "HTML",
+    }
+
+
+@pytest.mark.asyncio
 async def test_gateway_answers_telegram_callback_query() -> None:
     requests: list[httpx.Request] = []
 

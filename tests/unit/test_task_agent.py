@@ -24,6 +24,11 @@ class FakeLLMClient:
         return self.response
 
 
+class FailingLLMClient(FakeLLMClient):
+    async def complete(self, *, system_prompt: str, user_message: str) -> str:
+        raise AssertionError("/start must not call the LLM")
+
+
 def make_event(text: str) -> MessageEvent:
     return MessageEvent(
         event_id="test-event",
@@ -42,6 +47,20 @@ def make_context(user_id) -> ExecutionContext:
         idempotency_key="test-agent-command",
         source="test",
     )
+
+
+@pytest.mark.asyncio
+async def test_task_agent_returns_help_for_start_without_calling_llm() -> None:
+    event = make_event("/start")
+
+    decision = await TaskAgent(FailingLLMClient("")).decide(
+        event,
+        make_context(event.user_id),
+    )
+
+    assert decision.command is None
+    assert "Posso ajudar" in decision.message
+    assert "**Criar tarefa**" in decision.message
 
 
 @pytest.mark.asyncio

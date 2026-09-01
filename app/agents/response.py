@@ -35,7 +35,7 @@ class DeterministicResponseAgent:
                 if isinstance(item, dict) and isinstance(item.get("title"), str)
             ]
             if total == 0:
-                return ResponseDecision(message="NÃ£o encontrei tarefas para essa consulta.")
+                return ResponseDecision(message="Não encontrei tarefas para essa consulta.")
             if total == 1 and titles:
                 return ResponseDecision(message=f"Encontrei 1 tarefa: {titles[0]}.")
             if not titles:
@@ -118,7 +118,7 @@ class DeterministicResponseAgent:
         title = effect.get("title")
         if result.command_type == "tasks.create" and isinstance(title, str):
             if result.status == "duplicate":
-                return ResponseDecision(message=f"A tarefa jÃ¡ estava criada: {title}.")
+                return ResponseDecision(message=f"A tarefa já estava criada: {title}.")
             if result.status == "executed":
                 return ResponseDecision(message=f"Tarefa criada: {title}.")
 
@@ -206,7 +206,7 @@ class DeterministicResponseAgent:
                     ),
                 )
             if result.status == "failed" and result.error_code == "TASK_NOT_FOUND":
-                return ResponseDecision(message="NÃ£o encontrei essa tarefa pendente.")
+                return ResponseDecision(message="Não encontrei essa tarefa pendente.")
             if isinstance(title, str):
                 if result.status == "duplicate":
                     return ResponseDecision(
@@ -216,11 +216,11 @@ class DeterministicResponseAgent:
                     return ResponseDecision(message=f"Tarefa conclu\u00edda: {title}.")
 
         if result.status == "rejected":
-            return ResponseDecision(message="NÃ£o foi possÃ­vel executar esse comando.")
+            return ResponseDecision(message="Não foi possível executar esse comando.")
         if result.status == "awaiting_confirmation":
-            return ResponseDecision(message="Preciso da sua confirmaÃ§Ã£o para continuar.")
+            return ResponseDecision(message="Preciso da sua confirmação para continuar.")
         if result.status == "failed":
-            return ResponseDecision(message="A execuÃ§Ã£o da tarefa falhou.")
+            return ResponseDecision(message="A execução da tarefa falhou.")
         return ResponseDecision(message="Comando executado com sucesso.")
 
 

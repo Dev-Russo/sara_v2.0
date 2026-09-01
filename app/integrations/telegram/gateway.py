@@ -1,5 +1,8 @@
 """Adapter assíncrono para a API HTTP do Telegram."""
 
+import html
+import re
+
 import httpx
 
 from app.integrations.telegram.adapter import TelegramDeliveryError, TelegramGateway
@@ -26,10 +29,13 @@ class HttpxTelegramGateway(TelegramGateway):
         text: str,
         reply_markup: TelegramReplyMarkup | None = None,
     ) -> None:
+        rendered_text, parse_mode = _render_telegram_text(text)
         payload: dict[str, object] = {
             "chat_id": chat_id,
-            "text": text,
+            "text": rendered_text,
         }
+        if parse_mode is not None:
+            payload["parse_mode"] = parse_mode
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
 
@@ -88,3 +94,22 @@ class HttpxTelegramGateway(TelegramGateway):
                 rejection_message,
                 code=rejection_code,
             )
+
+
+_BOLD_MARKDOWN_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+
+
+def _render_telegram_text(text: str) -> tuple[str, str | None]:
+    """Converte o subconjunto de Markdown produzido pela SARA para HTML seguro."""
+
+    if not _BOLD_MARKDOWN_RE.search(text):
+        return text, None
+
+    rendered: list[str] = []
+    cursor = 0
+    for match in _BOLD_MARKDOWN_RE.finditer(text):
+        rendered.append(html.escape(text[cursor : match.start()]))
+        rendered.append(f"<b>{html.escape(match.group(1))}</b>")
+        cursor = match.end()
+    rendered.append(html.escape(text[cursor:]))
+    return "".join(rendered), "HTML"

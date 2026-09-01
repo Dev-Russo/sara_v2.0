@@ -16,6 +16,18 @@ from app.schemas.commands import TasksCreateCommand, TasksListCommand
 from app.schemas.decisions import AgentDecision
 from app.schemas.events import ExecutionContext, MessageEvent
 
+START_HELP_MESSAGE = """Olá! Sou o TaskAgent da SARA. Posso ajudar com suas tarefas.
+
+Aqui estão os comandos disponíveis:
+• **Criar tarefa** — "Criar uma tarefa sobre..." ou "Adicionar..." com título,
+  descrição, prioridade e data.
+• **Listar tarefas** — "Mostrar minhas tarefas" ou "Que tarefas tenho?".
+• **Concluir tarefa** — "Concluir..." ou "Marcar como feito...".
+• **Editar tarefa** — "Alterar..." ou "Aumentar prioridade de...".
+• **Excluir tarefa** — "Remover..." ou "Descartar...".
+
+Como posso ajudar?"""
+
 TASK_AGENT_SYSTEM_PROMPT = """
 Você é o TaskAgent da SARA. Interprete a mensagem do usuário e retorne somente um
 objeto JSON compatível com o contrato AgentDecision.
@@ -77,6 +89,8 @@ class TaskAgent:
 
     async def decide(self, event: MessageEvent, context: ExecutionContext) -> AgentDecision:
         del context
+        if event.text.strip().casefold() == "/start":
+            return AgentDecision(message=START_HELP_MESSAGE)
         today = self._local_date(event.received_at)
         reference_date = today.isoformat()
         raw_decision = await self._llm.complete(
